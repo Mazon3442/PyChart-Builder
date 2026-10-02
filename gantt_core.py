@@ -8,14 +8,23 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-PALETTE = ["#377EB8", "#E4572E", "#3A9E4E", "#8456B8", "#6B6B6B",
-           "#E0A82E", "#2AA6B8", "#C94F8A"]
+# Colour choices offered in the picker, SWATCH_COLS per row. The first row is also
+# what gets handed out automatically, in order, to categories without a colour.
+SWATCH_COLS = 8
+SWATCHES = [
+    "#377EB8", "#E4572E", "#3A9E4E", "#8456B8", "#E0A82E", "#2AA6B8", "#C94F8A", "#6B6B6B",
+    "#1F4E79", "#A33A1A", "#1F6B30", "#573680", "#9A6F12", "#176B78", "#8C2F5E", "#333333",
+    "#7FB2E0", "#F28C6B", "#7CCB8B", "#B592E0", "#F2CC73", "#74CDD9", "#E69AC1", "#A8A8A8",
+    "#D62728", "#FF7F0E", "#BCBD22", "#17BECF", "#1F77B4", "#9467BD", "#8C564B", "#2CA02C",
+]
+PALETTE = SWATCHES[:SWATCH_COLS]
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
@@ -68,6 +77,15 @@ class Project:
 
 def _monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
+
+def auto_color(categories: list[Category]) -> str:
+    """First swatch no category uses yet (cycling once they're all taken)."""
+    used = {c.color.lower() for c in categories}
+    for color in SWATCHES:
+        if color.lower() not in used:
+            return color
+    return SWATCHES[len(categories) % len(SWATCHES)]
 
 
 def fmt_num(x: float) -> str:
@@ -148,12 +166,42 @@ def project_from_dict(d: dict[str, Any]) -> Project:
 
 
 def save_project(p: Project, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(project_to_dict(p), indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
 
 
 def load_project(path: Path) -> Project:
     return project_from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+def projects_dir() -> Path:
+    """Where saved projects live (override with the PYGANTT_PROJECTS environment variable)."""
+    override = os.environ.get("PYGANTT_PROJECTS")
+    return Path(override).expanduser() if override else Path.home() / "Documents" / "PyGantt-Builder"
+
+
+def list_projects(folder: Path | None = None) -> list[Path]:
+    """Saved projects, most recently changed first."""
+    folder = folder or projects_dir()
+    if not folder.is_dir():
+        return []
+    return sorted(folder.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+
+_BAD_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
+                     *(f"LPT{i}" for i in range(1, 10))}
+
+
+def project_filename(name: str) -> str:
+    """Turn a project name into a file name that is valid on Linux and Windows."""
+    safe = _BAD_FILENAME_CHARS.sub("-", name).strip(" .")
+    if not safe:
+        raise ValueError("Project name can't be empty.")
+    if safe.upper() in _WINDOWS_RESERVED:
+        safe += "_"
+    return safe[:80] + ".json"
 
 
 def output_path(p: Project, project_file: Path) -> Path:

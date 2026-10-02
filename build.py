@@ -10,7 +10,7 @@ PyInstaller can't cross-compile, so run this on each OS you want a build for
 """
 from pathlib import Path
 
-import PyInstaller.__main__
+import PyInstaller.__main__  # type: ignore[import-untyped]
 
 ROOT = Path(__file__).parent
 

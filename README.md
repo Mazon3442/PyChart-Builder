@@ -13,9 +13,12 @@ Download the file for your system from the **Releases** page (or the latest
 | Windows | `gantt-builder-windows.exe` | Open **Windows Terminal** (or PowerShell) in the folder and run `.\gantt-builder-windows.exe`. Double-clicking works too. Windows may show a "SmartScreen" warning because the file isn't code-signed: *More info → Run anyway*. |
 | Linux   | `gantt-builder-linux`       | `chmod +x gantt-builder-linux` then `./gantt-builder-linux` |
 
-Your chart is saved as `gantt_project.json` in the folder you run it from. Give it
-a different name with `./gantt-builder-linux mychart.json`. The PNG is written
-next to the project file. Try the included `deer_alarm.json` for an example.
+Charts are saved in `Documents/PyGantt-Builder/`, one `.json` file per chart, and the
+PNG is written next to it. The app reopens your most recent chart. Press **Ctrl+P** to
+switch between charts, start a new one, or save a copy. You can also open any file
+directly: `./gantt-builder-linux path/to/chart.json`. Try the included `deer_alarm.json`
+for an example. (Set the `PYGANTT_PROJECTS` environment variable to keep charts in a
+different folder.)
 
 No Python needed for the downloads. To run from source instead:
 
@@ -27,7 +30,9 @@ python gantt_app.py [project.json]
 ## Using it
 
 Tabs: **Settings**, **Categories**, **Tasks**, **Milestones**, **Preview**.
-Start with Categories (they give bars their colour), then Tasks.
+Start with Categories (they give bars their colour), then Tasks. Colours are picked for
+you automatically. Choose one from the swatches if you like; no hex codes needed. A new
+task starts the week after the previous one ends.
 
 | Key | Action |
 |-----|--------|
@@ -35,6 +40,9 @@ Start with Categories (they give bars their colour), then Tasks.
 | `Enter` | Edit the selected row |
 | `d` | Delete the selected row |
 | `[` / `]` | Move the row up / down (row order = order on the chart) |
+| `←` / `→` | Switch tabs (inside a text box they move the cursor; press `↑` to get back to the tab bar) |
+| `↑` / `↓` | Move between boxes on the Settings tab and in dialogs |
+| `Ctrl+P` | Projects: open another chart, new project, save a copy |
 | `Ctrl+S` | Save the project |
 | `F5` | Export the PNG |
 | `F6` | Open the PNG |
