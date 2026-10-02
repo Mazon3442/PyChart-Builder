@@ -14,8 +14,8 @@ Download the file for your system from the **Releases** page (or the latest
 | Linux   | `gantt-builder-linux`       | `chmod +x gantt-builder-linux` then `./gantt-builder-linux` |
 
 Charts are saved in `Documents/PyGantt-Builder/`, one `.json` file per chart, and the
-PNG is written next to it. The app reopens your most recent chart. Press **Ctrl+P** to
-switch between charts, start a new one, or save a copy. You can also open any file
+PNG is written next to it. The app reopens your most recent chart. Press **Ctrl+P** (Settings) to
+switch between charts, start a new one, or save a copy; the same menu changes the theme. You can also open any file
 directly: `./gantt-builder-linux path/to/chart.json`. Try the included `deer_alarm.json`
 for an example. (Set the `PYGANTT_PROJECTS` environment variable to keep charts in a
 different folder.)
@@ -42,7 +42,7 @@ task starts the week after the previous one ends.
 | `[` / `]` | Move the row up / down (row order = order on the chart) |
 | `←` / `→` | Switch tabs (inside a text box they move the cursor; press `↑` to get back to the tab bar) |
 | `↑` / `↓` | Move between boxes on the Settings tab and in dialogs |
-| `Ctrl+P` | Projects: open another chart, new project, save a copy |
+| `Ctrl+P` | **Settings** menu: change theme, open another chart, new project, save a copy, save, export, quit |
 | `Ctrl+S` | Save the project |
 | `F5` | Export the PNG |
 | `F6` | Open the PNG |

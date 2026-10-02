@@ -16,7 +16,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,11 +25,11 @@ from typing import Any, ClassVar
 from rich.text import Text
 from textual import events
 from textual.actions import SkipAction
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, ScrollableContainer, VerticalScroll
 from textual.message import Message
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual.widget import Widget
 from textual.widgets import (
     Button,
@@ -408,9 +408,10 @@ DataTable { height: 1fr; }
 
 class GanttApp(App[None]):
     CSS = CSS
-    ENABLE_COMMAND_PALETTE = False  # Ctrl+P is the project menu instead
     BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("ctrl+p", "projects", "Projects"),
+        # Declaring the palette binding ourselves is what lets us rename its footer label.
+        Binding("ctrl+p", "command_palette", "Settings", show=False, priority=True,
+                tooltip="Theme, projects, save and export"),
         Binding("ctrl+s", "save", "Save"),
         Binding("f5", "export", "Export PNG"),
         Binding("f6", "view", "View PNG"),
@@ -438,7 +439,7 @@ class GanttApp(App[None]):
 
     def compose(self) -> ComposeResult:
         values = self.settings_values()
-        yield Header(icon=" ")  # Textual disables the icon when the command palette is off
+        yield Header()
         with TabbedContent(id="tabs"):
             with TabPane("Settings", id="tab-settings"), Panel(id="settings"):
                 yield Label("↑/↓ move between boxes. ↑ from the first box goes back to the tab bar, "
@@ -709,7 +710,22 @@ class GanttApp(App[None]):
         out.append("\n\nRough preview - press F5 for the real chart.", style="dim")
         return out
 
-    # ---- projects (Ctrl+P)
+    # ---- Ctrl+P menu: Textual's built-in commands (theme, quit, ...) plus ours
+    def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
+        yield from super().get_system_commands(screen)
+        yield SystemCommand("Projects", "Switch chart, start a new one or save a copy", self.action_projects)
+        yield SystemCommand("New project", "Start a blank chart", lambda: self.projects_chosen(("new", None)))
+        yield SystemCommand("Save project as", "Save the current chart under a new name",
+                            lambda: self.projects_chosen(("saveas", None)))
+        for path in core.list_projects():
+            if path.resolve() != self.path.resolve():
+                yield SystemCommand(f"Open project: {path.stem}", "Switch to this chart",
+                                    lambda path=path: self.open_project(path))
+        yield SystemCommand("Save", "Save the current project", self.action_save)
+        yield SystemCommand("Export PNG", "Write the chart image", self.action_export)
+        yield SystemCommand("View PNG", "Open the exported image", self.action_view)
+
+    # ---- projects
     def action_projects(self) -> None:
         if self.check_action("projects", ()):
             self.push_screen(ProjectsScreen(self.path), self.projects_chosen)
