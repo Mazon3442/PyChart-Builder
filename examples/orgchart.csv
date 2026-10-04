@@ -1,0 +1,8 @@
+id,label,parent
+ceo,Dana Reyes - CEO,
+cto,Lee Park - CTO,ceo
+cfo,Sam Ortiz - CFO,ceo
+dev1,Web team,cto
+dev2,Mobile team,cto
+acct,Accounting,cfo
+pay,Payroll,acct

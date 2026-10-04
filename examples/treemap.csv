@@ -1,0 +1,9 @@
+label,value,parent
+Housing,,
+Rent,1200,Housing
+Utilities,260,Housing
+Food,,
+Groceries,400,Food
+Eating out,180,Food
+Transport,210,
+Savings,350,

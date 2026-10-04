@@ -15,7 +15,7 @@ import PyInstaller.__main__  # type: ignore[import-untyped]
 ROOT = Path(__file__).parent
 
 PyInstaller.__main__.run([
-    str(ROOT / "gantt_app.py"),
+    str(ROOT / "chart_app.py"),
     "--name", "gantt-builder",
     "--onefile",
     "--console",                      # it's a terminal app

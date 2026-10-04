@@ -1,0 +1,342 @@
+"""Drive the real terminal app with Textual's test pilot."""
+import asyncio
+import shutil
+from pathlib import Path
+
+import chart_app
+import chart_core as core
+from charts import CHART_TYPES
+from editor_gantt import GanttEditor
+from editor_table import TableEditor
+from textual.widgets import DataTable
+
+ROOT = Path(__file__).resolve().parent.parent
+SIZE = (120, 40)
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+async def type_text(pilot, text):
+    for ch in text:
+        await pilot.press("space" if ch == " " else ch)
+
+
+def save_chart(chart_id, path, csv_name=None):
+    chart = CHART_TYPES[chart_id]
+    project = chart.from_csv(ROOT / "examples" / f"{csv_name or chart_id}.csv", path.stem)
+    core.save_project(project, path)
+    return project
+
+
+def test_first_run_asks_for_a_chart_type_then_a_name(projects):
+    async def go():
+        app = chart_app.ChartApp(None, None)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.PickerScreen)
+            await pilot.press("down", "down", "down")  # gantt, bar, line, pie
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.FormScreen)
+            await pilot.press("enter")  # accept the suggested name
+            await pilot.pause()
+            assert isinstance(app.screen, TableEditor)
+            assert app.project.type == "pie"
+            assert app.path.exists() and app.path.parent == projects
+
+    run(go())
+
+
+def test_escape_on_first_run_quits(projects):
+    async def go():
+        app = chart_app.ChartApp(None, None)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+        assert not app.is_running
+
+    run(go())
+
+
+def test_name_dialog_cancel_returns_to_the_picker_on_first_run(projects):
+    async def go():
+        app = chart_app.ChartApp(None, None)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.FormScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.PickerScreen)
+
+    run(go())
+
+
+def test_most_recent_chart_is_loaded_by_default(projects):
+    save_chart("bar", projects / "older.json")
+    newer = projects / "newer.json"
+    save_chart("pie", newer)
+    import os
+    os.utime(projects / "older.json", (1, 1))
+    path, project = chart_app.most_recent_project()
+    assert path.name == "newer.json" and project.type == "pie"
+
+
+def test_most_recent_skips_unreadable_files(projects):
+    save_chart("bar", projects / "good.json")
+    (projects / "bad.json").write_text("{not json", encoding="utf-8")
+    import os
+    os.utime(projects / "good.json", (1, 1))
+    path, _project = chart_app.most_recent_project()
+    assert path.name == "good.json"
+
+
+def test_nothing_saved_means_nothing_to_load(projects):
+    assert chart_app.most_recent_project() is None
+
+
+def test_gantt_project_opens_in_the_gantt_editor(projects):
+    path = projects / "deer.json"
+    shutil.copy(ROOT / "deer_alarm.json", path)
+    project = core.load_project(path)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            assert isinstance(app.screen, GanttEditor)
+            assert app.screen.query_one("#tasks", DataTable).row_count == len(project.tasks)
+
+    run(go())
+
+
+def test_adding_a_series_and_rows_in_a_bar_chart(projects):
+    path = projects / "b.json"
+    project = CHART_TYPES["bar"].new("b")
+    core.save_project(project, path)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            ed = app.screen
+            assert isinstance(ed, TableEditor)
+            # a second series
+            ed.query_one("TabbedContent").active = "tab-series"
+            await pilot.pause()
+            await pilot.press("a")
+            await pilot.pause()
+            await type_text(pilot, "Costs")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert [s[0] for s in project.tables["series"]] == ["Series 1", "Costs"]
+            assert project.tables["series"][1][1], "a colour was picked automatically"
+            # a data row with two values
+            ed.query_one("TabbedContent").active = "tab-data"
+            await pilot.pause()
+            assert [str(c.label) for c in ed.query_one("#data", DataTable).ordered_columns] == \
+                ["Label", "Series 1", "Costs"]
+            await pilot.press("a")
+            await pilot.pause()
+            await type_text(pilot, "Jan")
+            await pilot.press("tab")
+            await type_text(pilot, "5")
+            await pilot.press("tab")
+            await type_text(pilot, "7.5")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert project.tables["data"] == [["Jan", 5.0, 7.5]]
+            assert app.dirty
+            # export and save
+            await pilot.press("f5")
+            await pilot.pause(0.5)
+            assert core.output_path(project, path).stat().st_size > 1000
+            await pilot.press("ctrl+s")
+            await pilot.pause()
+            assert not app.dirty
+            assert core.load_project(path).tables["data"] == [["Jan", 5.0, 7.5]]
+
+    run(go())
+
+
+def test_invalid_number_is_reported_in_the_form(projects):
+    path = projects / "p.json"
+    project = CHART_TYPES["pie"].new("p")
+    core.save_project(project, path)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            ed = app.screen
+            ed.query_one("TabbedContent").active = "tab-data"
+            await pilot.pause()
+            await pilot.press("a")
+            await pilot.pause()
+            await type_text(pilot, "Rent")
+            await pilot.press("tab")
+            await type_text(pilot, "lots")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.FormScreen)  # still open
+            assert "must be a number" in str(app.screen.query_one("#form-error").render())
+            assert project.tables["data"] == []
+
+    run(go())
+
+
+def test_import_csv_into_this_chart_replaces_data_but_keeps_settings(projects, tmp_path):
+    path = projects / "p.json"
+    project = CHART_TYPES["pie"].new("Mine")
+    project.settings["style"] = "donut"
+    core.save_project(project, path)
+    csv_path = tmp_path / "data.csv"
+    shutil.copy(ROOT / "examples" / "pie.csv", csv_path)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.import_here()
+            await pilot.pause()
+            await type_text(pilot, f'"{csv_path}"')  # quoted, as Windows' "Copy as path" gives it
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, TableEditor)
+            assert len(project.tables["data"]) == 5
+            assert project.settings["style"] == "donut" and project.title == "Mine"
+            assert app.dirty
+            assert app.screen.query_one("#data", DataTable).row_count == 5
+
+    run(go())
+
+
+def test_import_csv_errors_show_in_the_dialog_and_change_nothing(projects, tmp_path):
+    path = projects / "p.json"
+    project = CHART_TYPES["pie"].new("Mine")
+    core.save_project(project, path)
+    bad = tmp_path / "bad.csv"
+    bad.write_text("label,value\nA,1\nB,twelve\n", encoding="utf-8")
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.import_here()
+            await pilot.pause()
+            await type_text(pilot, str(bad))
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.FormScreen)
+            assert 'row 3, column "Value"' in str(app.screen.query_one("#form-error").render())
+            assert project.tables["data"] == [] and not app.dirty
+
+    run(go())
+
+
+def test_switching_charts_saves_unsaved_work_and_changes_editor(projects):
+    a, b = projects / "a.json", projects / "b.json"
+    pa = save_chart("pie", a)
+    save_chart("gantt", b)
+
+    async def go():
+        app = chart_app.ChartApp(a, pa)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            assert isinstance(app.screen, TableEditor)
+            pa.title = "changed"
+            app.mark_dirty()
+            app.open_project(b)
+            await pilot.pause()
+            assert isinstance(app.screen, GanttEditor)
+            assert app.path == b and not app.dirty
+            assert core.load_project(a).title == "changed"
+            app.open_project(a)
+            await pilot.pause()
+            assert isinstance(app.screen, TableEditor) and app.project.type == "pie"
+
+    run(go())
+
+
+def test_new_chart_from_the_projects_menu(projects):
+    a = projects / "a.json"
+    pa = save_chart("pie", a)
+
+    async def go():
+        app = chart_app.ChartApp(a, pa)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.projects_chosen(("new", None))
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.PickerScreen)
+            await pilot.press("enter")  # the first entry: Gantt
+            await pilot.pause()
+            await pilot.press("enter")  # accept the name
+            await pilot.pause()
+            assert isinstance(app.screen, GanttEditor)
+            assert len(core.list_projects()) == 2
+
+    run(go())
+
+
+def test_settings_changes_are_stored(projects):
+    path = projects / "b.json"
+    project = CHART_TYPES["bar"].new("b")
+    core.save_project(project, path)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            box = app.screen.query_one("#set-title")
+            box.value = "Sales"
+            await pilot.pause()
+            assert project.title == "Sales" and app.dirty
+
+    run(go())
+
+
+def test_cli_render_from_csv(tmp_path, capsys, monkeypatch):
+    csv_path = tmp_path / "sales.csv"
+    shutil.copy(ROOT / "examples" / "bar.csv", csv_path)
+    monkeypatch.setattr("sys.argv", ["chart_app.py", str(csv_path), "--type", "bar", "--render"])
+    chart_app.main()
+    assert (tmp_path / "sales.png").stat().st_size > 1000
+    assert str(tmp_path / "sales.png") in capsys.readouterr().out
+
+
+def test_cli_csv_without_type_is_an_error(tmp_path, monkeypatch, capsys):
+    csv_path = tmp_path / "x.csv"
+    csv_path.write_text("a,b\n1,2\n", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["chart_app.py", str(csv_path), "--render"])
+    try:
+        chart_app.main()
+    except SystemExit as e:
+        assert e.code == 2
+    assert "--type" in capsys.readouterr().err
+
+
+def test_cli_bad_csv_prints_the_message(tmp_path, monkeypatch, capsys):
+    csv_path = tmp_path / "x.csv"
+    csv_path.write_text("label,value\nA,oops\n", encoding="utf-8")
+    monkeypatch.setattr("sys.argv", ["chart_app.py", str(csv_path), "--type", "pie", "--render"])
+    try:
+        chart_app.main()
+    except SystemExit as e:
+        assert e.code == 2
+    assert 'column "Value": must be a number' in capsys.readouterr().err
+
+
+def test_cli_render_empty_chart_is_a_message_not_a_traceback(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "empty.json"
+    core.save_project(CHART_TYPES["pie"].new("e"), path)
+    monkeypatch.setattr("sys.argv", ["chart_app.py", str(path), "--render"])
+    try:
+        chart_app.main()
+    except SystemExit as e:
+        assert e.code == 1
+    assert "Add at least 1 row" in capsys.readouterr().err

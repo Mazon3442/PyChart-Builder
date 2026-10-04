@@ -1,0 +1,7 @@
+wbs,task,category,start,duration
+1.1,Write requirements,Planning,1,2
+1.2,Choose parts,Planning,2,2
+2.1,Build prototype,Build,4,4
+2.2,Write firmware,Build,5,5
+3.1,Test with users,Test,10,2
+3.2,Fix bugs,Test,11,2
