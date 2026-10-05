@@ -14,7 +14,7 @@ from textual.widgets import DataTable, Footer, Header, Input, Label, Select, Sta
 
 from charts.table import Column, Setting, TableChart, format_cell, parse_cell, parse_setting
 from editor_base import EditorScreen
-from ui import Field, FormScreen, ItemTable, Panel
+from ui import Field, FormScreen, ItemTable, NavSelect, Panel
 
 
 class TableEditor(EditorScreen):
@@ -44,7 +44,7 @@ class TableEditor(EditorScreen):
                 for s in self.chart.settings:
                     yield Label(s.label + (f" - {s.help}" if s.help else ""), classes="field-label")
                     if s.kind == "choice":
-                        yield Select([(c, c) for c in s.choices], value=self.setting_value(s.key),
+                        yield NavSelect([(c, c) for c in s.choices], value=self.setting_value(s.key),
                                      allow_blank=False, id=f"set-{s.key}")
                     else:
                         yield Input(value=self.setting_value(s.key), id=f"set-{s.key}")

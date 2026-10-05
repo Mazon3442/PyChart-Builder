@@ -175,7 +175,9 @@ class GanttEditor(EditorScreen):
                             old.wbs if old else next_wbs(items)),
                       Field("name", "Task name", old.name if old else ""),
                       Field("category", "Category",
-                            old.category if old and old.category in names else names[0], choices=names),
+                            old.category if old and old.category in names
+                            else items[-1].category if items and items[-1].category in names  # same as the last task
+                            else names[0], choices=names),
                       Field("start", "Start week (1 = first week)",
                             fmt_num(old.start) if old else next_start(items)),
                       Field("duration", "Duration in weeks", fmt_num(old.duration) if old else "1")]

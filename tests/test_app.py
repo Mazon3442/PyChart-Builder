@@ -340,3 +340,81 @@ def test_cli_render_empty_chart_is_a_message_not_a_traceback(tmp_path, monkeypat
     except SystemExit as e:
         assert e.code == 1
     assert "Add at least 1 row" in capsys.readouterr().err
+
+
+def test_new_task_defaults_to_the_last_tasks_category(projects):
+    path = projects / "deer.json"
+    shutil.copy(ROOT / "deer_alarm.json", path)
+    project = core.load_project(path)
+    project.tasks[-1].category = project.categories[3].name  # not the first category
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.screen.open_form("tasks", None)
+            await pilot.pause()
+            assert app.screen.query_one("#f-category").value == project.categories[3].name
+
+    run(go())
+
+
+def test_dropdowns_work_from_the_keyboard(projects):
+    path = projects / "deer.json"
+    shutil.copy(ROOT / "deer_alarm.json", path)
+    project = core.load_project(path)
+    names = [c.name for c in project.categories]
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.screen.open_form("tasks", None)
+            await pilot.pause()
+            form = app.screen
+            select = form.query_one("#f-category")
+            select.focus()
+            await pilot.pause()
+            # Down on a closed drop-down moves to the next box instead of opening it
+            await pilot.press("down")
+            assert app.focused is form.query_one("#f-start") and not select.expanded
+            await pilot.press("up")
+            assert app.focused is select
+            # Enter opens it; the list starts on the current choice and stops at both ends
+            await pilot.press("enter")
+            await pilot.pause()
+            assert select.expanded
+            for _ in range(len(names) + 3):
+                await pilot.press("down")
+            assert select.query_one("SelectOverlay").highlighted == len(names) - 1
+            for _ in range(len(names) + 3):
+                await pilot.press("up")
+            assert select.query_one("SelectOverlay").highlighted == 0
+            await pilot.press("down", "enter")
+            await pilot.pause()
+            assert not select.expanded and select.value == names[1]
+
+    run(go())
+
+
+def test_f6_and_ctrl_o_open_the_png(projects, monkeypatch):
+    path = projects / "p.json"
+    project = save_chart("pie", path)
+    opened = []
+    monkeypatch.setattr(chart_app, "open_file", opened.append)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("f6")  # nothing exported yet: a warning, not a crash
+            await pilot.pause()
+            assert opened == []
+            await pilot.press("f5")
+            await pilot.pause(0.7)
+            await pilot.press("f6")
+            await pilot.press("ctrl+o")
+            await pilot.pause()
+            assert opened == [core.output_path(project, path)] * 2
+
+    run(go())

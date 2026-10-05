@@ -127,8 +127,10 @@ def project_filename(name: str) -> str:
 
 def output_path(p: SavedProject, project_file: Path) -> Path:
     """Where the PNG goes: the project's `output` setting (relative to the project file), or
-    next to the project file with a .png extension."""
-    if p.output.strip():
-        out = Path(p.output.strip())
-        return out if out.is_absolute() else project_file.parent / out
-    return project_file.with_suffix(".png")
+    next to the project file with a .png extension. The result always ends in .png."""
+    if not p.output.strip():
+        return project_file.with_suffix(".png")
+    out = Path(p.output.strip())
+    if out.suffix.lower() != ".png":
+        out = out.with_name(out.name + ".png")  # "report" -> "report.png", "v1.2" -> "v1.2.png"
+    return out if out.is_absolute() else project_file.parent / out

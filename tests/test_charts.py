@@ -286,3 +286,38 @@ def test_dollar_signs_in_text_are_drawn_as_typed(tmp_path):
         else:
             project.tasks[0].name = "$x^ budget $"
         chart.render(project, tmp_path / f"{cid}.png")
+
+
+def test_milestone_tiers_never_overlap_and_always_finish():
+    from charts.gantt import assign_tiers
+    # five crowded labels (the layout that used to overprint) and one pathological pile-up
+    for centers, widths in (([6.6, 7.8, 8.4, 9.0, 9.6], [0.9, 0.9, 0.9, 0.9, 1.2]), ([1.0] * 6, [2.0] * 6)):
+        tiers = assign_tiers(centers, widths)
+        for i in range(len(centers)):
+            for j in range(i):
+                if tiers[i] == tiers[j]:
+                    assert abs(centers[i] - centers[j]) >= (widths[i] + widths[j]) / 2
+
+
+def test_gantt_with_crowded_milestones_renders(tmp_path):
+    import datetime
+    from charts.gantt import Milestone
+    project = core.load_project(ROOT / "deer_alarm.json")
+    project.semester_start = datetime.date(2026, 9, 21)
+    project.milestones = [Milestone(w, f"Milestone number {w}\nwith two lines") for w in (11, 12, 13, 14, 15, 16)]
+    CHART_TYPES["gantt"].render(project, tmp_path / "g.png")
+    assert (tmp_path / "g.png").stat().st_size > 5_000
+
+
+def test_output_name_without_png_extension_gets_one(tmp_path):
+    """The name typed in Settings may omit .png; export and 'view' must agree on the real file."""
+    chart = CHART_TYPES["pie"]
+    p = chart.from_csv(example("pie"), "t")
+    project_file = tmp_path / "proj.json"
+    for typed, expected in (("DeerAlarm(SD403_Fa26_09)", "DeerAlarm(SD403_Fa26_09).png"),
+                            ("v1.2", "v1.2.png"), ("shout.PNG", "shout.PNG"), ("sub/x", "sub/x.png")):
+        p.output = typed
+        out = core.output_path(p, project_file)
+        assert out == tmp_path / expected
+        chart.render(p, out)
+        assert out.exists()

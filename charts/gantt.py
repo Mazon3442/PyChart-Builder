@@ -123,6 +123,46 @@ def month_labels(start: date, weeks: int) -> list[tuple[float, str]]:
 
 # ------------------------------------------------------------------- rendering
 
+MILESTONE_FONT = 9.5
+ROW_IN = 0.32            # one y unit on the chart, in inches
+DIAMOND_Y = -2.9         # the diamonds sit in their own band above the month names (which are at y = -2)
+LABEL_BASE_Y = -3.55     # bottom of the lowest tier of labels
+
+
+def label_sizes(labels: list[str]) -> list[tuple[float, int]]:
+    """(width in inches, number of lines) of each milestone label as it will be drawn."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure(figsize=(2, 2))
+    renderer = fig.canvas.get_renderer()
+    sizes = []
+    for label in labels:
+        box = fig.text(0, 0, label, fontsize=MILESTONE_FONT).get_window_extent(renderer)
+        sizes.append((box.width / fig.dpi, label.count(chr(10)) + 1))
+    plt.close(fig)
+    return sizes
+
+
+def assign_tiers(centers: list[float], widths: list[float], gap: float = 0.1) -> list[int]:
+    """Tier (0 = lowest row of labels) for each milestone so that no two labels overlap.
+
+    `centers` and `widths` are in the same unit (inches along the axis). Each label takes the lowest
+    row that is free where it sits, working left to right.
+    """
+    tiers: list[int] = [-1] * len(centers)
+    for i in sorted(range(len(centers)), key=lambda k: centers[k]):
+        lo, hi = centers[i] - widths[i] / 2 - gap, centers[i] + widths[i] / 2 + gap
+        taken = {tiers[j] for j in range(len(centers))
+                 if tiers[j] >= 0 and centers[j] - widths[j] / 2 < hi and lo < centers[j] + widths[j] / 2}
+        tier = 0
+        while tier in taken:
+            tier += 1
+        tiers[i] = tier
+    return tiers
+
+
 def render(p: Project, out: Path, dpi: int = 170) -> Path:
     """Draw the chart to `out` (PNG). Raises ValueError if there is nothing to draw."""
     if not p.tasks:
@@ -138,15 +178,34 @@ def render(p: Project, out: Path, dpi: int = 170) -> Path:
     weeks = effective_weeks(p)
 
     # Layout in inches so the look stays consistent from 5 tasks to 50.
-    row_in = 0.32
+    row_in = ROW_IN
     axes_w = max(5.0, 0.6 * weeks)
     axes_h = (n + 0.6) * row_in
     left = max(2.0, 0.085 * max(len(t.name) for t in tasks) + 0.4)
     right = 0.9
-    head = 1.6 if p.milestones else 1.0
+    head = 1.0
     used = [c for c in p.categories if any(t.category == c.name for t in tasks)]
     bottom = 0.75 + 0.27 * math.ceil(max(len(used), 1) / 3)
     axes_w += max(0.0, 0.125 * len(p.title) + 0.6 - (left + axes_w + right))  # room for title
+
+    # Milestone labels: stack them in tiers so they never overlap, and make room at the top and sides.
+    tiers: list[int] = []
+    label_y: list[float] = []
+    if p.milestones:
+        sizes = label_sizes([m.label for m in p.milestones])
+        centers = [m.week * axes_w / weeks for m in p.milestones]
+        tiers = assign_tiers(centers, [w for w, _lines in sizes])
+        tier_lines = [max([ln for (_w, ln), t in zip(sizes, tiers) if t == k] or [1]) for k in range(max(tiers) + 1)]
+        label_y, y = [], LABEL_BASE_Y
+        tier_bottom = []
+        for lines in tier_lines:
+            tier_bottom.append(y)
+            y -= lines * 0.5 + 0.3
+        label_y = [tier_bottom[t] for t in tiers]
+        top = max(-(ly) + 0.5 * ln for ly, (_w, ln) in zip(label_y, sizes)) - 1.0  # units above the axes
+        head = 0.65 + row_in * top + 0.1
+        left = max(left, max(w / 2 - c for c, (w, _l) in zip(centers, sizes)) + 0.15)
+        right = max(right, max(c + w / 2 - axes_w for c, (w, _l) in zip(centers, sizes)) + 0.15)
     width, height = left + axes_w + right, head + axes_h + bottom
 
     fig = plt.figure(figsize=(width, height))
@@ -172,11 +231,12 @@ def render(p: Project, out: Path, dpi: int = 170) -> Path:
         ax.text(x, -2.0, label, ha="center", va="center",
                 fontsize=11, style="italic", color="#555555")
 
-    for m in p.milestones:
-        ax.plot(m.week, -1.8, marker="D", markersize=13, color="#111111",
+    for m, ly in zip(p.milestones, label_y):
+        ax.plot(m.week, DIAMOND_Y, marker="D", markersize=13, color="#111111",
                 clip_on=False, zorder=6)
-        ax.plot([m.week, m.week], [-2.6, -3.1], color="#888888", linewidth=1, clip_on=False)
-        ax.text(m.week, -3.15, m.label, ha="center", va="bottom", fontsize=9.5, clip_on=False)
+        ax.plot([m.week, m.week], [DIAMOND_Y - 0.4, ly - 0.05], color="#888888", linewidth=1, clip_on=False)
+        ax.text(m.week, ly, m.label, ha="center", va="bottom", fontsize=MILESTONE_FONT, clip_on=False,
+                zorder=7, bbox={"facecolor": "white", "edgecolor": "none", "pad": 1.5})  # hides stems behind it
 
     ax.set_yticks(range(n))
     ax.set_yticklabels([t.name for t in tasks], fontsize=11)

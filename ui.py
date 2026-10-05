@@ -19,6 +19,7 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Input, Label, Select
+from textual.widgets._select import SelectOverlay
 
 import chart_core as core
 from chart_core import fmt_num
@@ -39,6 +40,41 @@ class ItemTable(DataTable[Any]):
     def action_cursor_right(self) -> None:
         if hasattr(self.screen, "action_switch_tab"):
             self.screen.action_switch_tab(1)
+
+
+class ClampedOverlay(SelectOverlay):
+    """The drop-down list of a Select, but ↑/↓ stop at the first and last choice instead of wrapping."""
+
+    def action_cursor_down(self) -> None:
+        if self.highlighted is None or self.highlighted < self.option_count - 1:
+            super().action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        if self.highlighted is None or self.highlighted > 0:
+            super().action_cursor_up()
+
+
+class NavSelect(Select[str]):
+    """A drop-down you can drive from the keyboard like any other box.
+
+    ↑/↓ move to the previous/next box (a stock Select opens its list on ↑/↓ instead, which traps you
+    in it); Enter or Space opens the list; inside the list ↑/↓ choose without wrapping around.
+    """
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("enter,space", "show_overlay", "Show menu", show=False),
+        Binding("up", "go(-1)", show=False),
+        Binding("down", "go(1)", show=False),
+    ]
+
+    def compose(self) -> ComposeResult:
+        for widget in super().compose():
+            if isinstance(widget, SelectOverlay):
+                yield ClampedOverlay(type_to_search=self._type_to_search).data_bind(compact=Select.compact)
+            else:
+                yield widget
+
+    def action_go(self, delta: int) -> None:
+        self.screen.focus_next() if delta > 0 else self.screen.focus_previous()
 
 
 AUTO, CUSTOM = -1, -2   # ColorPicker selections that aren't a swatch
@@ -157,7 +193,7 @@ class FormScreen(ModalScreen[Any]):
             for f in self.fields:
                 yield Label(f.label, classes="field-label")
                 if f.choices is not None:
-                    yield Select([(c, c) for c in f.choices], value=f.value,
+                    yield NavSelect([(c, c) for c in f.choices], value=f.value,
                                  allow_blank=False, id=f"f-{f.key}")
                 elif f.picker:
                     yield ColorPicker(f.value, id=f"p-{f.key}")

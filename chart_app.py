@@ -187,6 +187,7 @@ class ChartApp(App[None]):
         Binding("ctrl+s", "save", "Save"),
         Binding("f5", "export", "Export PNG"),
         Binding("f6", "view", "View PNG"),
+        Binding("ctrl+o", "view", "View PNG", show=False),  # for terminals that swallow function keys
     ]
 
     def __init__(self, path: Path | None = None, project: Any | None = None, dirty: bool = False):
@@ -247,7 +248,7 @@ class ChartApp(App[None]):
                                     lambda path=path: self.open_project(path))
         yield SystemCommand("Save", "Save the current project", self.action_save)
         yield SystemCommand("Export PNG", "Write the chart image", self.action_export)
-        yield SystemCommand("View PNG", "Open the exported image", self.action_view)
+        yield SystemCommand("View PNG", "Open the exported image (F6 or Ctrl+O)", self.action_view)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action in ("save", "export", "view", "projects"):
@@ -425,7 +426,12 @@ class ChartApp(App[None]):
         if not png.exists():
             self.notify("Nothing exported yet - press F5 first.", severity="warning")
             return
-        open_file(png)
+        try:
+            open_file(png)
+        except OSError as e:
+            self.notify(f"Couldn't open {png}: {e}", severity="error", title="View failed")
+            return
+        self.notify(f"Opening {png.name} in your image viewer (it may appear behind this window).")
 
     async def action_quit(self) -> None:
         if not self.dirty:

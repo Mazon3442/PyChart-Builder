@@ -72,7 +72,7 @@ Colours are picked for you automatically; choose one from the swatches if you li
 | `Ctrl+P` | **Settings** menu: theme, open another chart, new chart, import CSV, save a copy, save, export, quit |
 | `Ctrl+S` | Save the project |
 | `F5` | Export the PNG |
-| `F6` | Open the PNG |
+| `F6` or `Ctrl+O` | Open the PNG (Ctrl+O is for terminals that swallow F-keys) |
 | `Ctrl+Q` | Quit |
 
 ## Loading data from a CSV file
