@@ -47,8 +47,8 @@ jobs:
       - name: Smoke test (renders sample charts with the built binary)
         shell: bash
         run: |
-          "./dist/${{ matrix.asset }}" deer_alarm.json --render
-          test -s deer_alarm.png
+          "./dist/${{ matrix.asset }}" examples/deer_alarm.json --render
+          test -s examples/deer_alarm.png
           "./dist/${{ matrix.asset }}" examples/pie.csv --type pie --render
           test -s examples/pie.png
           "./dist/${{ matrix.asset }}" examples/orgchart.csv --type orgchart --render

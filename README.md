@@ -43,7 +43,7 @@ Download the file for your system from the **Releases** page (or the latest
 Charts are saved in `Documents/PyGantt-Builder/`, one `.json` file per chart, and the
 PNG is written next to it. Press **Ctrl+P** (Settings) to switch between charts, start a new one,
 import a CSV, or save a copy; the same menu changes the theme. You can also open any file
-directly: `./gantt-builder-linux path/to/chart.json`. Try the included `deer_alarm.json`
+directly: `./gantt-builder-linux path/to/chart.json`. Try the included `examples/deer_alarm.json`
 for an example. (Set the `PYGANTT_PROJECTS` environment variable to keep charts in a
 different folder.)
 

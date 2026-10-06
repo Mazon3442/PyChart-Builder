@@ -101,7 +101,7 @@ def test_nothing_saved_means_nothing_to_load(projects):
 
 def test_gantt_project_opens_in_the_gantt_editor(projects):
     path = projects / "deer.json"
-    shutil.copy(ROOT / "deer_alarm.json", path)
+    shutil.copy(ROOT / "examples" / "deer_alarm.json", path)
     project = core.load_project(path)
 
     async def go():
@@ -344,7 +344,7 @@ def test_cli_render_empty_chart_is_a_message_not_a_traceback(tmp_path, monkeypat
 
 def test_new_task_defaults_to_the_last_tasks_category(projects):
     path = projects / "deer.json"
-    shutil.copy(ROOT / "deer_alarm.json", path)
+    shutil.copy(ROOT / "examples" / "deer_alarm.json", path)
     project = core.load_project(path)
     project.tasks[-1].category = project.categories[3].name  # not the first category
 
@@ -361,7 +361,7 @@ def test_new_task_defaults_to_the_last_tasks_category(projects):
 
 def test_dropdowns_work_from_the_keyboard(projects):
     path = projects / "deer.json"
-    shutil.copy(ROOT / "deer_alarm.json", path)
+    shutil.copy(ROOT / "examples" / "deer_alarm.json", path)
     project = core.load_project(path)
     names = [c.name for c in project.categories]
 

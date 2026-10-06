@@ -54,7 +54,7 @@ def test_csv_help_mentions_something(cid):
 
 
 def test_old_gantt_files_without_a_type_still_load():
-    project = core.load_project(ROOT / "deer_alarm.json")
+    project = core.load_project(ROOT / "examples" / "deer_alarm.json")
     assert project.type == "gantt" and len(project.tasks) > 5
 
 
@@ -302,7 +302,7 @@ def test_milestone_tiers_never_overlap_and_always_finish():
 def test_gantt_with_crowded_milestones_renders(tmp_path):
     import datetime
     from charts.gantt import Milestone
-    project = core.load_project(ROOT / "deer_alarm.json")
+    project = core.load_project(ROOT / "examples" / "deer_alarm.json")
     project.semester_start = datetime.date(2026, 9, 21)
     project.milestones = [Milestone(w, f"Milestone number {w}\nwith two lines") for w in (11, 12, 13, 14, 15, 16)]
     CHART_TYPES["gantt"].render(project, tmp_path / "g.png")
