@@ -93,6 +93,7 @@ class ColorPicker(Widget, can_focus=True):
         Binding("right", "move(1, 0)", show=False),
         Binding("up", "move(0, -1)", show=False),
         Binding("down", "move(0, 1)", show=False),
+        Binding("enter", "confirm", show=False),
     ]
 
     class Changed(Message):
@@ -137,6 +138,10 @@ class ColorPicker(Widget, can_focus=True):
             raise SkipAction()  # leave the picker downwards
         else:
             self.choose(row * cols + col)
+
+    def action_confirm(self) -> None:
+        """Enter keeps the highlighted colour and moves on to the next field."""
+        self.screen.focus_next()
 
     def on_click(self, event: events.Click) -> None:
         pos = event.get_content_offset(self)

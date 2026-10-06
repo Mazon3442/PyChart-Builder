@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterable
@@ -186,8 +187,8 @@ class ChartApp(App[None]):
                 tooltip="Theme, charts, import and export"),
         Binding("ctrl+s", "save", "Save"),
         Binding("f5", "export", "Export PNG"),
-        Binding("f6", "view", "View PNG"),
-        Binding("ctrl+o", "view", "View PNG", show=False),  # for terminals that swallow function keys
+        Binding("ctrl+o", "view", "View PNG"),
+        Binding("f6", "view", "View PNG", show=False),  # many Linux terminals/desktops swallow F6
     ]
 
     def __init__(self, path: Path | None = None, project: Any | None = None, dirty: bool = False):
@@ -248,7 +249,7 @@ class ChartApp(App[None]):
                                     lambda path=path: self.open_project(path))
         yield SystemCommand("Save", "Save the current project", self.action_save)
         yield SystemCommand("Export PNG", "Write the chart image", self.action_export)
-        yield SystemCommand("View PNG", "Open the exported image (F6 or Ctrl+O)", self.action_view)
+        yield SystemCommand("View PNG", "Open the exported image (Ctrl+O or F6)", self.action_view)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action in ("save", "export", "view", "projects"):
@@ -419,7 +420,7 @@ class ChartApp(App[None]):
             self.notify(str(e), severity="error", title="Export failed")
             return
         self.last_png = out
-        self.notify(f"{out}\nPress F6 to open it.", title="Chart exported")
+        self.notify(f"{out}\nPress Ctrl+O to open it.", title="Chart exported")
 
     def action_view(self) -> None:
         png = self.last_png or core.output_path(self.project, self.path)
@@ -444,72 +445,18 @@ class ChartApp(App[None]):
 def open_file(path: Path) -> None:
     if sys.platform == "win32":
         os.startfile(path)  # type: ignore[attr-defined]
-    else:
-        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(path)],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def most_recent_project() -> tuple[Path, Any] | None:
-    """The last project worked on, or None if nothing usable is saved yet."""
-    for path in core.list_projects():
-        try:
-            return path, core.load_project(path)
-        except (OSError, ValueError, KeyError, TypeError):
+        return
+    # xdg-open exits quietly when the default viewer in mimeapps.list isn't installed, so try
+    # each opener in turn and treat an early non-zero exit as a failure.
+    openers = ["open"] if sys.platform == "darwin" else ["gio open", "xdg-open"]
+    for opener in openers:
+        cmd = opener.split()
+        if shutil.which(cmd[0]) is None:
             continue
-    return None
-
-
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Terminal chart builder: Gantt, bar, line, pie and more")
-    ap.add_argument("file", nargs="?", help="project .json file, or a .csv file (needs --type); "
-                                            "default: your most recent chart")
-    ap.add_argument("--type", choices=list(CHART_TYPES), metavar="TYPE",
-                    help="chart type for a CSV file or a new project (see --list-types)")
-    ap.add_argument("--render", action="store_true", help="write the PNG and exit without opening the editor")
-    ap.add_argument("--list-types", action="store_true", help="list the chart types and exit")
-    args = ap.parse_args()
-
-    if args.list_types:
-        for c in CHART_TYPES.values():
-            print(f"{c.id:<10} {c.label} - {c.description}")
-        return
-
-    path: Path | None = None
-    project: Any = None
-    dirty = False
-    if args.file:
-        given = Path(args.file).expanduser()
-        if given.suffix.lower() == ".csv":
-            if not args.type:
-                ap.error("a CSV file needs --type (see --list-types), e.g. --type bar")
-            try:
-                project = charts.get(args.type).from_csv(given, given.stem)
-            except CsvError as e:
-                ap.exit(2, f"{e}\n")
-            path, dirty = (given.with_suffix(".json") if args.render else unused_project_path(given.stem)), True
-        elif given.exists():
-            try:
-                project, path = core.load_project(given), given
-            except (OSError, ValueError, KeyError, TypeError) as e:
-                ap.exit(1, f"Couldn't open {given}: {e}\n")
-        else:
-            if args.render:
-                ap.error(f"{given} doesn't exist")
-            path, project = given, charts.get(args.type or "gantt").new(given.stem)
-    elif args.render:
-        ap.error("--render needs a project or CSV file")
-    elif found := most_recent_project():
-        path, project = found
-    if args.render:
-        assert path is not None
-        chart = charts.get(project.type)
+        proc = subprocess.Popen([*cmd, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            print(chart.render(project, core.output_path(project, path)))
-        except ValueError as e:
-            ap.exit(1, f"{e}\n")
-        return
-    ChartApp(path, project, dirty).run()
-
-
-if __name__ == "__main__":
-    main()
+            if proc.wait(timeout=1.5) == 0:
+                return
+        except subprocess.TimeoutExpired:
+            return  # still running: the viewer is up
+    raise OSError("no working image viewer found (set one with: xdg-mime default <viewer>.desktop image/png)")
