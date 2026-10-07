@@ -18,7 +18,7 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Button, DataTable, Input, Label, Select
+from textual.widgets import Button, DataTable, Input, Label, OptionList, Select
 from textual.widgets._select import SelectOverlay
 
 import chart_core as core
@@ -75,6 +75,29 @@ class NavSelect(Select[str]):
 
     def action_go(self, delta: int) -> None:
         self.screen.focus_next() if delta > 0 else self.screen.focus_previous()
+
+
+class NavList(OptionList):
+    """Option list whose ↓ past the last row moves on to the buttons below, and whose ↑ stops at the top."""
+
+    def action_cursor_down(self) -> None:
+        if self.highlighted is None or self.highlighted >= self.option_count - 1:
+            self.screen.focus_next()
+        else:
+            super().action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        if self.highlighted is not None and self.highlighted > 0:
+            super().action_cursor_up()
+
+
+def move_between_buttons(screen: Widget, delta: int) -> None:
+    """←/→ on a dialog's button row. Anywhere else the key keeps its normal job."""
+    buttons = list(screen.query(Button))
+    focused = screen.screen.focused
+    if not isinstance(focused, Button) or focused not in buttons:
+        raise SkipAction()
+    buttons[max(0, min(len(buttons) - 1, buttons.index(focused) + delta))].focus()
 
 
 AUTO, CUSTOM = -1, -2   # ColorPicker selections that aren't a swatch
@@ -185,6 +208,8 @@ class FormScreen(ModalScreen[Any]):
         ("escape", "cancel", "Cancel"),
         Binding("up", "nav_focus(-1)", show=False),
         Binding("down", "nav_focus(1)", show=False),
+        Binding("left", "button_nav(-1)", show=False),
+        Binding("right", "button_nav(1)", show=False),
     ]
     AUTO_FOCUS = "Input, Select"
 
@@ -237,6 +262,9 @@ class FormScreen(ModalScreen[Any]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
+    def action_button_nav(self, delta: int) -> None:
+        move_between_buttons(self, delta)
+
     def action_nav_focus(self, delta: int) -> None:
         """↑/↓ move between fields (the colour picker uses them itself until you leave it)."""
         if delta > 0:
@@ -246,22 +274,31 @@ class FormScreen(ModalScreen[Any]):
 
 
 class ConfirmScreen(ModalScreen[bool]):
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "no", "No"), ("y", "yes", "Yes"), ("n", "no", "No")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "no", "No"), ("y", "yes", "Yes"), ("n", "no", "No"),
+        Binding("left", "button_nav(-1)", show=False), Binding("right", "button_nav(1)", show=False),
+    ]
     AUTO_FOCUS = "Button"
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, default_no: bool = False):
+        """`default_no` puts the cursor on No, for questions where Enter shouldn't destroy anything."""
         super().__init__()
         self.message = message
+        if default_no:
+            self.AUTO_FOCUS = "#no"
 
     def compose(self) -> ComposeResult:
         with Panel(id="form"):
-            yield Label(self.message)
+            yield Label(self.message, classes="info-text")
             with Horizontal(id="form-buttons"):
                 yield Button("Yes (y)", variant="warning", id="yes")
                 yield Button("No (n)", id="no")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "yes")
+
+    def action_button_nav(self, delta: int) -> None:
+        move_between_buttons(self, delta)
 
     def action_yes(self) -> None:
         self.dismiss(True)

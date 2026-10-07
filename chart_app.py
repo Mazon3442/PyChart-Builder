@@ -26,18 +26,21 @@ from typing import Any, ClassVar
 from rich.text import Text
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding, BindingType
+from textual.command import DiscoveryHit
 from textual.containers import Horizontal
 from textual.screen import ModalScreen, Screen
+from textual.system_commands import SystemCommandsProvider
 from textual.widgets import Button, Label, OptionList
 from textual.widgets.option_list import Option
 
 import chart_core as core
 import charts
+import filepicker
 from charts import CHART_TYPES, ChartType, CsvError
 from editor_base import EditorScreen
 from editor_gantt import GanttEditor
 from editor_table import TableEditor
-from ui import CSS, ConfirmScreen, Field, FormScreen, Panel
+from ui import (CSS, ConfirmScreen, Field, FormScreen, NavList, Panel, move_between_buttons)
 
 NEW_PROJECT_NAME = "My {}"
 
@@ -47,7 +50,7 @@ NEW_PROJECT_NAME = "My {}"
 class PickerScreen(ModalScreen[str | None]):
     """Choose a chart type. Dismisses with the chart type id, or None if cancelled."""
     BINDINGS: ClassVar[list[BindingType]] = [("escape", "close", "Cancel")]
-    AUTO_FOCUS = "OptionList"
+    AUTO_FOCUS = "NavList"
 
     def __init__(self, title: str = "Choose a chart type"):
         super().__init__()
@@ -56,8 +59,8 @@ class PickerScreen(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Panel(id="form"):
             yield Label(self.heading, id="form-title")
-            yield OptionList(*(Option(Text.assemble((c.label, "bold"), ("\n  " + c.description, "dim")), id=c.id)
-                               for c in CHART_TYPES.values()), id="chart-list")
+            yield NavList(*(Option(Text.assemble((c.label, "bold"), ("\n  " + c.description, "dim")), id=c.id)
+                            for c in CHART_TYPES.values()), id="chart-list")
             yield Label("↑/↓ choose · Enter select · esc cancel", classes="hint")
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
@@ -90,11 +93,14 @@ class InfoScreen(ModalScreen[None]):
 
 
 class ProjectsScreen(ModalScreen[tuple[str, Path | None] | None]):
-    """Project menu. Dismisses with ('open', path), ('new', None), ('saveas', None) or None."""
+    """Project menu. Dismisses with ('open', path), ('new', None), ('saveas', None),
+    ('deleted_current', None) (the open chart was deleted) or None."""
     BINDINGS: ClassVar[list[BindingType]] = [
         ("escape", "close", "Close"), ("n", "new", "New"), ("s", "save_as", "Save as"),
+        ("d", "delete", "Delete"), ("delete", "delete", "Delete"),
+        Binding("left", "button_nav(-1)", show=False), Binding("right", "button_nav(1)", show=False),
     ]
-    AUTO_FOCUS = "OptionList"
+    AUTO_FOCUS = "NavList"
 
     def __init__(self, current: Path):
         super().__init__()
@@ -120,23 +126,56 @@ class ProjectsScreen(ModalScreen[tuple[str, Path | None] | None]):
         with Panel(id="form"):
             yield Label("Projects", id="form-title")
             yield Label(f"Saved in {core.projects_dir()}", classes="hint")
-            yield OptionList(*(Option(self.label(p), id=str(i)) for i, p in enumerate(self.entries)),
-                             id="project-list")
-            yield Label("Enter open · n new chart · s save a copy as · esc close", classes="hint")
+            yield NavList(*self.options(), id="project-list")
+            yield Label("↑/↓ choose · Enter open · n new · s save a copy · d delete · esc close", classes="hint")
             with Horizontal(id="form-buttons"):
                 yield Button("Open", variant="primary", id="open")
                 yield Button("New chart", id="new")
                 yield Button("Save as…", id="saveas")
+                yield Button("Delete", variant="error", id="delete")
+
+    def options(self) -> list[Option]:
+        return [Option(self.label(p), id=str(i)) for i, p in enumerate(self.entries)]
 
     def on_mount(self) -> None:
+        self.highlight_current()
+
+    def highlight_current(self) -> None:
         for i, p in enumerate(self.entries):
             if p.resolve() == self.current:
-                self.query_one(OptionList).highlighted = i
+                self.query_one(NavList).highlighted = i
 
     def open_highlighted(self) -> None:
-        i = self.query_one(OptionList).highlighted
+        i = self.query_one(NavList).highlighted
         if i is not None:
             self.dismiss(("open", self.entries[i]))
+
+    def delete_highlighted(self) -> None:
+        i = self.query_one(NavList).highlighted
+        if i is None:
+            return
+        path = self.entries[i]
+        here = path.resolve() == self.current
+        warning = "\n\nIt is the chart you have open." if here else ""
+        self.app.push_screen(
+            ConfirmScreen(f"Delete '{path.stem}'? This can't be undone.{warning}", default_no=True),
+            lambda yes: self.delete(path, here) if yes else None)
+
+    def delete(self, path: Path, here: bool) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as e:
+            self.notify(f"Couldn't delete {path.name}: {e}", severity="error")
+            return
+        if here:
+            self.dismiss(("deleted_current", None))
+            return
+        self.entries = [e for e in self.entries if e != path]
+        listing = self.query_one(NavList)
+        listing.clear_options()
+        listing.add_options(self.options())
+        self.highlight_current()
+        self.notify(f"Deleted {path.stem}")
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         self.dismiss(("open", self.entries[event.option_index]))
@@ -149,6 +188,8 @@ class ProjectsScreen(ModalScreen[tuple[str, Path | None] | None]):
                 self.dismiss(("new", None))
             case "saveas":
                 self.dismiss(("saveas", None))
+            case "delete":
+                self.delete_highlighted()
             case _:
                 self.dismiss(None)
 
@@ -157,6 +198,12 @@ class ProjectsScreen(ModalScreen[tuple[str, Path | None] | None]):
 
     def action_save_as(self) -> None:
         self.dismiss(("saveas", None))
+
+    def action_delete(self) -> None:
+        self.delete_highlighted()
+
+    def action_button_nav(self, delta: int) -> None:
+        move_between_buttons(self, delta)
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -179,8 +226,18 @@ def unused_project_path(stem: str) -> Path:
     return path
 
 
+class OrderedCommands(SystemCommandsProvider):
+    """The stock provider lists commands alphabetically; ours are already in the order we want."""
+
+    async def discover(self):
+        for name, help_text, callback, discover in self.app.get_system_commands(self.screen):
+            if discover:
+                yield DiscoveryHit(name, callback, help=help_text)
+
+
 class ChartApp(App[None]):
     CSS = CSS
+    COMMANDS = {OrderedCommands}
     BINDINGS: ClassVar[list[BindingType]] = [
         # Declaring the palette binding ourselves is what lets us rename its footer label.
         Binding("ctrl+p", "command_palette", "Settings", show=False, priority=True,
@@ -231,25 +288,34 @@ class ChartApp(App[None]):
 
     # ---- the Ctrl+P menu: Textual's built-in commands (theme, quit, ...) plus ours
     def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
-        yield from super().get_system_commands(screen)
-        if self.project is None:
-            return
-        yield SystemCommand("Projects", "Switch chart, start a new one or save a copy", self.action_projects)
-        yield SystemCommand("New chart", "Start a blank chart of any type",
-                            lambda: self.projects_chosen(("new", None)))
-        yield SystemCommand("Import CSV as a new chart", "Build a chart from a CSV file", self.import_new)
-        yield SystemCommand("Import CSV into this chart", "Replace this chart's data with a CSV file (Ctrl+L)",
-                            self.import_here)
-        yield SystemCommand("CSV format help", "What the CSV for this chart type should look like", self.csv_help)
-        yield SystemCommand("Save project as", "Save the current chart under a new name",
-                            lambda: self.projects_chosen(("saveas", None)))
-        for path in core.list_projects():
-            if path.resolve() != self.path.resolve():
-                yield SystemCommand(f"Open project: {path.stem}", "Switch to this chart",
-                                    lambda path=path: self.open_project(path))
-        yield SystemCommand("Save", "Save the current project", self.action_save)
-        yield SystemCommand("Export PNG", "Write the chart image", self.action_export)
-        yield SystemCommand("View PNG", "Open the exported image (F6)", self.action_view)
+        """The Ctrl+P menu, in the order it's shown: charts, files, CSV, then the app itself."""
+        builtin = {c.title: c for c in super().get_system_commands(screen)}
+        if self.project is not None:
+            yield SystemCommand("Projects", "Switch chart, start a new one, save a copy or delete one",
+                                self.action_projects)
+            yield SystemCommand("New chart", "Start a blank chart of any type",
+                                lambda: self.projects_chosen(("new", None)))
+            yield SystemCommand("Save project as", "Save the current chart under a new name",
+                                lambda: self.projects_chosen(("saveas", None)))
+            yield SystemCommand("Save", "Save the current project (Ctrl+S)", self.action_save)
+            yield SystemCommand("Export PNG", "Write the chart image (F5)", self.action_export)
+            yield SystemCommand("View PNG", "Open the exported image (F6)", self.action_view)
+            yield SystemCommand("Import CSV into this chart", "Replace this chart's data with a CSV file (Ctrl+L)",
+                                self.import_here)
+            yield SystemCommand("Import CSV as a new chart", "Build a chart from a CSV file", self.import_new)
+            yield SystemCommand("CSV format help", "What the CSV for this chart type should look like",
+                                self.csv_help)
+            for path in core.list_projects():
+                if path.resolve() != self.path.resolve():  # searchable, but kept off the default list
+                    yield SystemCommand(f"Open project: {path.stem}", "Switch to this chart",
+                                        lambda path=path: self.open_project(path), False)
+        last = builtin.pop("Quit", None)
+        for name in ("Theme", "Keys", "Screenshot"):
+            if name in builtin:
+                yield builtin.pop(name)
+        yield from builtin.values()  # anything else Textual adds (e.g. Maximize)
+        if last:
+            yield last
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action in ("save", "export", "view", "projects", "import_csv"):
@@ -257,6 +323,10 @@ class ChartApp(App[None]):
         return True
 
     # ---- projects
+    def action_import_csv(self) -> None:
+        if self.check_action("import_csv", ()):
+            self.import_here()
+
     def action_projects(self) -> None:
         if self.check_action("projects", ()):
             self.push_screen(ProjectsScreen(self.path), self.projects_chosen)
@@ -271,6 +341,18 @@ class ChartApp(App[None]):
             self.pick_new_chart(first_run=False)
         elif action == "saveas":
             self.ask_project_name("Save a copy as", f"{self.path.stem} copy", self.save_as)
+        elif action == "deleted_current":
+            self.after_current_deleted()
+
+    def after_current_deleted(self) -> None:
+        """The open chart's file is gone: carry on with the next most recent one, or start a new chart."""
+        self.dirty = False  # nothing to save back to the deleted file
+        if found := most_recent_project():
+            path, project = found
+            self.switch_to(path, project)
+        else:
+            self.notify("That was your only chart - start a new one.")
+            self.pick_new_chart(first_run=True)
 
     def pick_new_chart(self, first_run: bool) -> None:
         def chosen(type_id: str | None) -> None:
@@ -353,8 +435,22 @@ class ChartApp(App[None]):
         self.refresh_title()
         self.notify(f"Saved a copy as {path.stem}")
 
-    # ---- CSV
+    # ---- CSV: a file dialog when the desktop has one, otherwise a box to type the path in
     def import_new(self) -> None:
+        self.run_worker(self.pick_then(self.import_new_form), exclusive=True)
+
+    def import_here(self) -> None:
+        self.run_worker(self.pick_then(self.import_here_form, self.import_here_file), exclusive=True)
+
+    async def pick_then(self, form: Callable[[str], None],
+                        use_file: Callable[[Path], None] | None = None) -> None:
+        shown, picked = await asyncio.to_thread(filepicker.pick_csv, Path.cwd())
+        if not shown:
+            form("")
+        elif picked is not None:
+            use_file(picked) if use_file else form(str(picked))
+
+    def import_new_form(self, csv_file: str = "") -> None:
         labels = {c.label: c for c in CHART_TYPES.values()}
 
         def validate(raw: dict[str, str]) -> tuple[ChartType, Any, Path]:
@@ -373,31 +469,32 @@ class ChartApp(App[None]):
 
         self.push_screen(FormScreen("Import CSV as a new chart", [
             Field("type", "Chart type", self.chart.label, choices=list(labels)),
-            Field("file", "CSV file (full path)"),
+            Field("file", "CSV file (full path)", csv_file),
             Field("name", "Project name (blank = the file name)"),
         ], validate), done)
 
-    def action_import_csv(self) -> None:
-        if self.check_action("import_csv", ()):
-            self.import_here()
+    def import_here_file(self, csv_file: Path) -> None:
+        try:
+            imported = self.chart.from_csv(csv_file, self.project.title)
+        except ValueError as e:  # CsvError is one
+            self.notify(str(e), severity="error", title="Import failed")
+            return
+        self.apply_import(imported)
 
-    def import_here(self) -> None:
-        chart, project = self.chart, self.project
-
-        def validate(raw: dict[str, str]) -> Any:
-            return chart.from_csv(clean_path(raw["file"]), project.title)
-
-        def done(imported: Any) -> None:
-            if imported is None:
-                return
-            chart.replace_data(project, imported)
-            self.mark_dirty()
-            if ed := self.editor():
-                ed.reload()
-            self.notify("Data replaced from the CSV file.")
-
+    def import_here_form(self, _prefill: str = "") -> None:
+        chart = self.chart
         self.push_screen(FormScreen(f"Import CSV into this {chart.label.lower()} - replaces its data", [
-            Field("file", "CSV file (full path)")], validate), done)
+            Field("file", "CSV file (full path)")],
+            lambda raw: chart.from_csv(clean_path(raw["file"]), self.project.title)), self.apply_import)
+
+    def apply_import(self, imported: Any) -> None:
+        if imported is None:
+            return
+        self.chart.replace_data(self.project, imported)
+        self.mark_dirty()
+        if ed := self.editor():
+            ed.reload()
+        self.notify("Data replaced from the CSV file.")
 
     def csv_help(self) -> None:
         chart = self.chart

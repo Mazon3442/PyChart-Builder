@@ -4,6 +4,8 @@ import shutil
 from pathlib import Path
 
 import chart_app
+import filepicker
+import pytest
 import chart_core as core
 import charts
 import ui
@@ -14,6 +16,15 @@ from textual.widgets import DataTable
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = (120, 40)
+
+
+REAL_PICK_CSV = filepicker.pick_csv
+
+
+@pytest.fixture(autouse=True)
+def no_native_dialog(monkeypatch):
+    """Never pop a real file dialog from a test: by default there is none, so the form is used."""
+    monkeypatch.setattr(filepicker, "pick_csv", lambda start=None: (False, None))
 
 
 def run(coro):
@@ -433,5 +444,236 @@ def test_ctrl_l_opens_the_csv_import_dialog(projects):
             await pilot.press("ctrl+l")
             await pilot.pause()
             assert isinstance(app.screen, ui.FormScreen)
+
+    run(go())
+
+
+def test_import_uses_the_file_dialog_when_there_is_one(projects, tmp_path, monkeypatch):
+    path = projects / "p.json"
+    project = CHART_TYPES["pie"].new("Mine")
+    core.save_project(project, path)
+    csv_path = tmp_path / "data.csv"
+    shutil.copy(ROOT / "examples" / "pie.csv", csv_path)
+    monkeypatch.setattr(filepicker, "pick_csv", lambda start=None: (True, csv_path))
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+l")
+            await pilot.pause(0.3)
+            assert isinstance(app.screen, TableEditor)  # no form: the chosen file was imported
+            assert len(project.tables["data"]) == 5 and app.dirty
+
+    run(go())
+
+
+def test_cancelling_the_file_dialog_changes_nothing(projects, monkeypatch):
+    path = projects / "p.json"
+    project = CHART_TYPES["pie"].new("Mine")
+    core.save_project(project, path)
+    monkeypatch.setattr(filepicker, "pick_csv", lambda start=None: (True, None))
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+l")
+            await pilot.pause(0.3)
+            assert isinstance(app.screen, TableEditor) and not app.dirty
+
+    run(go())
+
+
+def test_new_chart_import_prefills_the_chosen_file(projects, tmp_path, monkeypatch):
+    path = projects / "p.json"
+    project = CHART_TYPES["pie"].new("Mine")
+    core.save_project(project, path)
+    csv_path = tmp_path / "data.csv"
+    shutil.copy(ROOT / "examples" / "pie.csv", csv_path)
+    monkeypatch.setattr(filepicker, "pick_csv", lambda start=None: (True, csv_path))
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.import_new()
+            await pilot.pause(0.3)
+            assert isinstance(app.screen, chart_app.FormScreen)
+            assert app.screen.query_one("#f-file").value == str(csv_path)
+
+    run(go())
+
+
+def test_picker_command_per_platform(monkeypatch, tmp_path):
+    monkeypatch.setattr(filepicker.sys, "platform", "linux")
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
+    monkeypatch.setattr(filepicker.shutil, "which", lambda n: f"/usr/bin/{n}" if n == "zenity" else None)
+    cmd = filepicker.picker_command(tmp_path)
+    assert cmd[0] == "zenity" and any("*.csv" in a for a in cmd)
+    monkeypatch.setattr(filepicker.shutil, "which", lambda n: f"/usr/bin/{n}" if n == "kdialog" else None)
+    assert filepicker.picker_command(tmp_path)[0] == "kdialog"
+    monkeypatch.setattr(filepicker.shutil, "which", lambda n: None)
+    assert filepicker.picker_command(tmp_path) is None  # falls back to typing the path
+    monkeypatch.delenv("WAYLAND_DISPLAY")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.setattr(filepicker.shutil, "which", lambda n: f"/usr/bin/{n}")
+    assert filepicker.picker_command(tmp_path) is None  # no desktop session
+    monkeypatch.setattr(filepicker.sys, "platform", "win32")
+    cmd = filepicker.picker_command(tmp_path)
+    assert "OpenFileDialog" in cmd[-1] and "*.csv" in cmd[-1]
+
+
+def test_pick_csv_results(monkeypatch, tmp_path):
+    class Done:
+        def __init__(self, code, out=""):
+            self.returncode, self.stdout, self.stderr = code, out, ""
+
+    monkeypatch.setattr(filepicker, "picker_command", lambda start: ["x"])
+    for done, expected in [(Done(0, "/a/b.csv\n"), (True, Path("/a/b.csv"))), (Done(1), (True, None)),
+                           (Done(0), (True, None)), (Done(255), (False, None))]:
+        monkeypatch.setattr(filepicker.subprocess, "run", lambda *a, _d=done, **k: _d)
+        assert REAL_PICK_CSV(tmp_path) == expected
+    monkeypatch.setattr(filepicker, "picker_command", lambda start: None)
+    assert REAL_PICK_CSV(tmp_path) == (False, None)
+
+
+def make_projects(projects, *names):
+    for name in names:
+        core.save_project(CHART_TYPES["pie"].new(name), projects / f"{name}.json")
+
+
+def test_palette_lists_projects_first_and_in_a_fixed_order(projects):
+    make_projects(projects, "a", "b")
+    project = core.load_project(projects / "a.json")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            names = [c.title for c in app.get_system_commands(app.screen) if c.discover]
+            assert names[:3] == ["Projects", "New chart", "Save project as"]
+            assert names.index("Save") < names.index("Import CSV into this chart") < names.index("Theme")
+            assert names[-1] == "Quit"
+            assert not any(n.startswith("Open project") for n in names)  # searchable only
+            everything = [c.title for c in app.get_system_commands(app.screen)]
+            assert "Open project: b" in everything
+
+    run(go())
+
+
+def test_projects_menu_arrows_reach_the_buttons_and_back(projects):
+    make_projects(projects, "a", "b")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.action_projects()
+            await pilot.pause()
+            menu = app.screen
+            listing = menu.query_one("#project-list")
+            await pilot.press("up", "up", "up")
+            assert listing.highlighted == 0  # stops at the top
+            await pilot.press("down", "down", "down")
+            await pilot.pause()
+            assert app.focused.id == "open"  # off the end of the list, onto the buttons
+            await pilot.press("right", "right", "right", "right")
+            assert app.focused.id == "delete"  # stops at the last button
+            await pilot.press("left")
+            assert app.focused.id == "saveas"
+
+    run(go())
+
+
+def test_delete_another_project_from_the_menu(projects):
+    make_projects(projects, "a", "b")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.action_projects()
+            await pilot.pause()
+            menu = app.screen
+            menu.query_one("#project-list").highlighted = [e.stem for e in menu.entries].index("b")
+            await pilot.press("d")
+            await pilot.pause()
+            assert isinstance(app.screen, chart_app.ConfirmScreen)
+            assert app.focused.id == "no"  # Enter alone never deletes
+            await pilot.press("y")
+            await pilot.pause()
+            assert app.screen is menu and not (projects / "b.json").exists()
+            assert [e.stem for e in menu.entries] == ["a"]
+            assert menu.query_one("#project-list").option_count == 1
+
+    run(go())
+
+
+def test_declining_the_delete_keeps_the_project(projects):
+    make_projects(projects, "a", "b")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.action_projects()
+            await pilot.pause()
+            await pilot.press("d", "enter")  # focus starts on No
+            await pilot.pause()
+            assert (projects / "a.json").exists() and (projects / "b.json").exists()
+
+    run(go())
+
+
+def test_deleting_the_open_chart_opens_the_next_one(projects):
+    make_projects(projects, "a", "b")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.dirty = True  # unsaved edits must not resurrect the deleted file
+            app.action_projects()
+            await pilot.pause()
+            menu = app.screen
+            menu.query_one("#project-list").highlighted = [e.stem for e in menu.entries].index("a")
+            await pilot.press("d", "y")
+            await pilot.pause(0.3)
+            assert not (projects / "a.json").exists()
+            assert app.path == projects / "b.json" and isinstance(app.screen, TableEditor)
+
+    run(go())
+
+
+def test_deleting_the_only_chart_starts_a_new_one(projects):
+    make_projects(projects, "a")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.action_projects()
+            await pilot.pause()
+            await pilot.press("d", "y")
+            await pilot.pause(0.3)
+            assert not (projects / "a.json").exists()
+            assert isinstance(app.screen, chart_app.PickerScreen)
+
+    run(go())
+
+
+def test_confirm_dialog_arrows_switch_between_yes_and_no(projects):
+    async def go():
+        app = chart_app.ChartApp(None, None)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.push_screen(chart_app.ConfirmScreen("Sure?"))
+            await pilot.pause()
+            assert app.focused.id == "yes"
+            await pilot.press("right")
+            assert app.focused.id == "no"
+            await pilot.press("left")
+            assert app.focused.id == "yes"
 
     run(go())
