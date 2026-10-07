@@ -78,7 +78,7 @@ class InfoScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Panel(id="form"):
             yield Label(self.heading, id="form-title")
-            yield Label(self.text)
+            yield Label(self.text, classes="info-text")
             with Horizontal(id="form-buttons"):
                 yield Button("Close", variant="primary", id="close")
 
@@ -187,8 +187,8 @@ class ChartApp(App[None]):
                 tooltip="Theme, charts, import and export"),
         Binding("ctrl+s", "save", "Save"),
         Binding("f5", "export", "Export PNG"),
-        Binding("ctrl+o", "view", "View PNG"),
-        Binding("f6", "view", "View PNG", show=False),  # many Linux terminals/desktops swallow F6
+        Binding("f6", "view", "View PNG"),
+        Binding("ctrl+l", "import_csv", "Import CSV"),
     ]
 
     def __init__(self, path: Path | None = None, project: Any | None = None, dirty: bool = False):
@@ -238,7 +238,7 @@ class ChartApp(App[None]):
         yield SystemCommand("New chart", "Start a blank chart of any type",
                             lambda: self.projects_chosen(("new", None)))
         yield SystemCommand("Import CSV as a new chart", "Build a chart from a CSV file", self.import_new)
-        yield SystemCommand("Import CSV into this chart", "Replace this chart's data with a CSV file",
+        yield SystemCommand("Import CSV into this chart", "Replace this chart's data with a CSV file (Ctrl+L)",
                             self.import_here)
         yield SystemCommand("CSV format help", "What the CSV for this chart type should look like", self.csv_help)
         yield SystemCommand("Save project as", "Save the current chart under a new name",
@@ -249,10 +249,10 @@ class ChartApp(App[None]):
                                     lambda path=path: self.open_project(path))
         yield SystemCommand("Save", "Save the current project", self.action_save)
         yield SystemCommand("Export PNG", "Write the chart image", self.action_export)
-        yield SystemCommand("View PNG", "Open the exported image (Ctrl+O or F6)", self.action_view)
+        yield SystemCommand("View PNG", "Open the exported image (F6)", self.action_view)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action in ("save", "export", "view", "projects"):
+        if action in ("save", "export", "view", "projects", "import_csv"):
             return self.project is not None and not isinstance(self.screen, ModalScreen)
         return True
 
@@ -377,6 +377,10 @@ class ChartApp(App[None]):
             Field("name", "Project name (blank = the file name)"),
         ], validate), done)
 
+    def action_import_csv(self) -> None:
+        if self.check_action("import_csv", ()):
+            self.import_here()
+
     def import_here(self) -> None:
         chart, project = self.chart, self.project
 
@@ -420,7 +424,7 @@ class ChartApp(App[None]):
             self.notify(str(e), severity="error", title="Export failed")
             return
         self.last_png = out
-        self.notify(f"{out}\nPress Ctrl+O to open it.", title="Chart exported")
+        self.notify(f"{out}\nPress F6 to open it.", title="Chart exported")
 
     def action_view(self) -> None:
         png = self.last_png or core.output_path(self.project, self.path)

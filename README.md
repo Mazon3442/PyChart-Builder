@@ -72,7 +72,8 @@ Colours are picked for you automatically; choose one from the swatches if you li
 | `Ctrl+P` | **Settings** menu: theme, open another chart, new chart, import CSV, save a copy, save, export, quit |
 | `Ctrl+S` | Save the project |
 | `F5` | Export the PNG |
-| `Ctrl+O` or `F6` | Open the PNG (F6 is swallowed by many Linux terminals, so Ctrl+O is the main key) |
+| `F6` | Open the PNG |
+| `Ctrl+L` | Import a CSV file into this chart (replaces its data) |
 | `Ctrl+Q` | Quit |
 
 ## Loading data from a CSV file

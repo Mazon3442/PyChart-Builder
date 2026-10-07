@@ -5,6 +5,8 @@ from pathlib import Path
 
 import chart_app
 import chart_core as core
+import charts
+import ui
 from charts import CHART_TYPES
 from editor_gantt import GanttEditor
 from editor_table import TableEditor
@@ -397,7 +399,7 @@ def test_dropdowns_work_from_the_keyboard(projects):
     run(go())
 
 
-def test_f6_and_ctrl_o_open_the_png(projects, monkeypatch):
+def test_f6_opens_the_png(projects, monkeypatch):
     path = projects / "p.json"
     project = save_chart("pie", path)
     opened = []
@@ -413,8 +415,23 @@ def test_f6_and_ctrl_o_open_the_png(projects, monkeypatch):
             await pilot.press("f5")
             await pilot.pause(0.7)
             await pilot.press("f6")
-            await pilot.press("ctrl+o")
             await pilot.pause()
-            assert opened == [core.output_path(project, path)] * 2
+            assert opened == [core.output_path(project, path)]
+
+    run(go())
+
+
+def test_ctrl_l_opens_the_csv_import_dialog(projects):
+    path = projects / "pie.json"
+    project = charts.get("pie").new("pie")
+    core.save_project(project, path)
+
+    async def go():
+        app = chart_app.ChartApp(path, project)
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+l")
+            await pilot.pause()
+            assert isinstance(app.screen, ui.FormScreen)
 
     run(go())

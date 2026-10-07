@@ -305,6 +305,7 @@ FormScreen, ConfirmScreen, ProjectsScreen, PickerScreen, InfoScreen { align: cen
 #form { width: 70; height: auto; max-height: 100%; border: thick $primary;
         background: $surface; padding: 0 2; }
 #form-title { text-style: bold; margin: 1 0; }
+.info-text { width: 100%; height: auto; }
 .field-label { margin-top: 1; color: $text-muted; width: 100%; }
 #form Input { border: none; height: 1; padding: 0 1; background: $boost; }
 #form-error { color: $error; height: auto; margin-top: 1; }
