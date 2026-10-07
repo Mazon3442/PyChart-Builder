@@ -677,3 +677,50 @@ def test_confirm_dialog_arrows_switch_between_yes_and_no(projects):
             assert app.focused.id == "yes"
 
     run(go())
+
+
+def screen_text(app) -> str:
+    strips = app.screen._compositor.render_strips()
+    return "\n".join("".join(seg.text for seg in strip) for strip in strips)
+
+
+def test_nothing_is_cut_off_at_80_columns(projects):
+    make_projects(projects, "a")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            footer = screen_text(app).splitlines()[-1]
+            for shown in ("^s Save", "f5 Export", "f6 View", "^l Import", "^p Settings"):
+                assert shown in footer, footer
+            app.action_projects()
+            await pilot.pause()
+            form = app.screen.query_one("#form")
+            for button in app.screen.query("Button"):
+                assert button.region.right <= form.content_region.right, button.id
+                assert button.region.width >= len(str(button.label)) + 2, button.id
+            app.pop_screen()
+            app.csv_help()
+            await pilot.pause()
+            info = app.screen.query_one(".info-text")
+            assert info.region.width <= app.screen.query_one("#form").content_region.width
+
+    run(go())
+
+
+def test_dialogs_fit_a_narrow_terminal(projects):
+    make_projects(projects, "a")
+
+    async def go():
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=(60, 24)) as pilot:
+            await pilot.pause()
+            app.action_projects()
+            await pilot.pause()
+            form = app.screen.query_one("#form")
+            assert form.region.right <= 60
+            for button in app.screen.query("Button"):
+                assert button.region.right <= form.content_region.right, button.id
+
+    run(go())

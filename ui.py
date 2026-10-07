@@ -339,7 +339,7 @@ def parse_color(raw: str, used: list[str]) -> str:
 
 CSS = """
 FormScreen, ConfirmScreen, ProjectsScreen, PickerScreen, InfoScreen { align: center middle; }
-#form { width: 70; height: auto; max-height: 100%; border: thick $primary;
+#form { width: 70; max-width: 100%; height: auto; max-height: 100%; border: thick $primary;
         background: $surface; padding: 0 2; }
 #form-title { text-style: bold; margin: 1 0; }
 .info-text { width: 100%; height: auto; }
@@ -347,7 +347,7 @@ FormScreen, ConfirmScreen, ProjectsScreen, PickerScreen, InfoScreen { align: cen
 #form Input { border: none; height: 1; padding: 0 1; background: $boost; }
 #form-error { color: $error; height: auto; margin-top: 1; }
 #form-buttons { height: auto; margin: 1 0; align-horizontal: right; }
-#form-buttons Button { margin-left: 2; }
+#form-buttons Button { margin-left: 1; min-width: 8; }
 #project-list, #chart-list { height: auto; max-height: 14; margin-top: 1; }
 #chart-list { max-height: 20; }
 Input.-invalid { background: $error 30%; }

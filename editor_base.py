@@ -16,8 +16,8 @@ class EditorScreen(Screen[None]):
         Binding("a", "add_item", "Add"),
         Binding("enter", "edit_item", "Edit", show=True),
         Binding("d,delete", "delete_item", "Delete"),
-        Binding("[", "move(-1)", "Move up"),
-        Binding("]", "move(1)", "Move down"),
+        Binding("[", "move(-1)", "Move", key_display="[ ]"),
+        Binding("]", "move(1)", "Move down", show=False),
         Binding("up", "nav_focus(-1)", show=False),
         Binding("down", "nav_focus(1)", show=False),
     ]

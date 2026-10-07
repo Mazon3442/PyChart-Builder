@@ -243,9 +243,9 @@ class ChartApp(App[None]):
         Binding("ctrl+p", "command_palette", "Settings", show=False, priority=True,
                 tooltip="Theme, charts, import and export"),
         Binding("ctrl+s", "save", "Save"),
-        Binding("f5", "export", "Export PNG"),
-        Binding("f6", "view", "View PNG"),
-        Binding("ctrl+l", "import_csv", "Import CSV"),
+        Binding("f5", "export", "Export"),
+        Binding("f6", "view", "View"),
+        Binding("ctrl+l", "import_csv", "Import"),
     ]
 
     def __init__(self, path: Path | None = None, project: Any | None = None, dirty: bool = False):
