@@ -213,13 +213,16 @@ class FormScreen(ModalScreen[Any]):
     ]
     AUTO_FOCUS = "Input, Select"
 
-    def __init__(self, title: str, fields: list[Field], validate: Callable[[dict[str, str]], Any]):
+    def __init__(self, title: str, fields: list[Field], validate: Callable[[dict[str, str]], Any],
+                 hint: str = ""):
         super().__init__()
-        self.form_title, self.fields, self.validate = title, fields, validate
+        self.form_title, self.fields, self.validate, self.hint = title, fields, validate, hint
 
     def compose(self) -> ComposeResult:
         with Panel(id="form"):
             yield Label(self.form_title, id="form-title")
+            if self.hint:
+                yield Label(self.hint, classes="hint", id="form-hint")
             for f in self.fields:
                 yield Label(f.label, classes="field-label")
                 if f.choices is not None:

@@ -442,15 +442,15 @@ class ChartApp(App[None]):
     def import_here(self) -> None:
         self.run_worker(self.pick_then(self.import_here_form, self.import_here_file), exclusive=True)
 
-    async def pick_then(self, form: Callable[[str], None],
+    async def pick_then(self, form: Callable[[str, str], None],
                         use_file: Callable[[Path], None] | None = None) -> None:
         shown, picked = await asyncio.to_thread(filepicker.pick_csv, Path.cwd())
         if not shown:
-            form("")
+            form("", filepicker.install_hint())
         elif picked is not None:
-            use_file(picked) if use_file else form(str(picked))
+            use_file(picked) if use_file else form(str(picked), "")
 
-    def import_new_form(self, csv_file: str = "") -> None:
+    def import_new_form(self, csv_file: str = "", hint: str = "") -> None:
         labels = {c.label: c for c in CHART_TYPES.values()}
 
         def validate(raw: dict[str, str]) -> tuple[ChartType, Any, Path]:
@@ -471,7 +471,7 @@ class ChartApp(App[None]):
             Field("type", "Chart type", self.chart.label, choices=list(labels)),
             Field("file", "CSV file (full path)", csv_file),
             Field("name", "Project name (blank = the file name)"),
-        ], validate), done)
+        ], validate, hint), done)
 
     def import_here_file(self, csv_file: Path) -> None:
         try:
@@ -481,11 +481,11 @@ class ChartApp(App[None]):
             return
         self.apply_import(imported)
 
-    def import_here_form(self, _prefill: str = "") -> None:
+    def import_here_form(self, _csv_file: str = "", hint: str = "") -> None:
         chart = self.chart
         self.push_screen(FormScreen(f"Import CSV into this {chart.label.lower()} - replaces its data", [
             Field("file", "CSV file (full path)")],
-            lambda raw: chart.from_csv(clean_path(raw["file"]), self.project.title)), self.apply_import)
+            lambda raw: chart.from_csv(clean_path(raw["file"]), self.project.title), hint), self.apply_import)
 
     def apply_import(self, imported: Any) -> None:
         if imported is None:
@@ -554,7 +554,8 @@ def open_file(path: Path) -> None:
         cmd = opener.split()
         if shutil.which(cmd[0]) is None:
             continue
-        proc = subprocess.Popen([*cmd, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen([*cmd, str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                env=filepicker.system_env())
         try:
             if proc.wait(timeout=1.5) == 0:
                 return

@@ -728,3 +728,46 @@ def test_dialogs_fit_a_narrow_terminal(projects):
                 assert button.region.right <= form.content_region.right, button.id
 
     run(go())
+
+
+def test_typed_path_form_suggests_zenity_only_on_linux(projects, monkeypatch):
+    make_projects(projects, "a")
+
+    async def go(platform, expect):
+        monkeypatch.setattr(filepicker.sys, "platform", platform)
+        app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
+        async with app.run_test(size=SIZE) as pilot:
+            await pilot.pause()
+            app.import_here()  # the autouse fixture says there is no dialog, so the form appears
+            await pilot.pause(0.3)
+            assert isinstance(app.screen, chart_app.FormScreen)
+            hints = list(app.screen.query("#form-hint"))
+            assert bool(hints) is expect
+            if expect:
+                assert "zenity" in str(hints[0].render())
+
+    run(go("linux", True))
+    run(go("win32", False))
+    run(go("darwin", False))
+
+
+def test_programs_started_by_the_packaged_app_get_the_system_libraries(monkeypatch):
+    monkeypatch.setattr(filepicker.sys, "frozen", True, raising=False)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEIbundle")
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/opt/mine")
+    env = filepicker.system_env()
+    assert env["LD_LIBRARY_PATH"] == "/opt/mine" and "LD_LIBRARY_PATH_ORIG" not in env
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG")
+    assert "LD_LIBRARY_PATH" not in filepicker.system_env()  # the user had none: drop the bundle's
+    monkeypatch.setattr(filepicker.sys, "frozen", False)
+    assert filepicker.system_env()["LD_LIBRARY_PATH"] == "/tmp/_MEIbundle"  # from source: untouched
+
+
+def test_a_dialog_that_crashes_is_not_mistaken_for_cancel(monkeypatch, tmp_path):
+    class Done:
+        returncode, stdout = 1, ""
+        stderr = "zenity: libssl.so.3: version `OPENSSL_3.5.0' not found"
+
+    monkeypatch.setattr(filepicker, "picker_command", lambda start: ["zenity"])
+    monkeypatch.setattr(filepicker.subprocess, "run", lambda *a, **k: Done())
+    assert REAL_PICK_CSV(tmp_path) == (False, None)  # so the type-the-path form appears instead

@@ -9,6 +9,7 @@ them available `pick_csv` says so and the app falls back to typing the path.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,24 @@ _POWERSHELL = (
     "$d.Filter = 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'; "
     "if ($d.ShowDialog() -eq 'OK') {{ [Console]::Out.Write($d.FileName) }}"
 )
+
+
+def system_env() -> dict[str, str]:
+    """Environment for starting other programs (file dialogs, image viewers).
+
+    The packaged app (PyInstaller) points LD_LIBRARY_PATH at its own bundled libraries. Programs
+    it starts would inherit that and load those older copies instead of the system's, which makes
+    zenity, xdg-open and the viewers crash on start. Put the original value back for them.
+    """
+    env = dict(os.environ)
+    if getattr(sys, "frozen", False):
+        for var in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+            orig = env.pop(f"{var}_ORIG", None)
+            if orig is not None:
+                env[var] = orig
+            else:
+                env.pop(var, None)
+    return env
 
 
 def picker_command(start: Path) -> list[str] | None:
@@ -52,6 +71,14 @@ def picker_command(start: Path) -> list[str] | None:
     return None
 
 
+def install_hint() -> str:
+    """Advice shown next to the type-the-path box. Only Linux has a missing-dialog problem to explain."""
+    if not sys.platform.startswith("linux"):
+        return ""
+    return ("Tip: no working file dialog was found. Install zenity (Arch: sudo pacman -S zenity, "
+            "Debian/Ubuntu: sudo apt install zenity) and this will open a file picker instead.")
+
+
 def pick_csv(start: Path | None = None) -> tuple[bool, Path | None]:
     """Show the dialog and wait. Returns (shown, chosen file).
 
@@ -63,12 +90,13 @@ def pick_csv(start: Path | None = None) -> tuple[bool, Path | None]:
     if cmd is None:
         return False, None
     try:
-        done = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        done = subprocess.run(cmd, capture_output=True, text=True, check=False, env=system_env())
     except OSError:
         return False, None
     chosen = done.stdout.strip().splitlines()
     if done.returncode == 0 and chosen:
         return True, Path(chosen[0])
-    # Cancelling gives exit 1 (zenity, kdialog, osascript) or exit 0 with no output (PowerShell);
-    # any other failure means the dialog itself is broken, so let the caller fall back.
-    return done.returncode in (0, 1), None
+    # Cancelling gives exit 1 (zenity, kdialog, osascript) or exit 0 with no output (PowerShell).
+    # A dialog that failed to start also exits 1, but says why on stderr - fall back for those.
+    failed = re.search(r"error|not found|cannot|can't|failed", done.stderr, re.IGNORECASE)
+    return done.returncode in (0, 1) and not failed, None
