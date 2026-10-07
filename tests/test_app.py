@@ -690,8 +690,12 @@ def test_nothing_is_cut_off_at_80_columns(projects):
     async def go():
         app = chart_app.ChartApp(projects / "a.json", core.load_project(projects / "a.json"))
         async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            footer = screen_text(app).splitlines()[-1]
+            footer = ""
+            for _ in range(40):  # the footer fills in a moment after start-up; slow machines need longer
+                await pilot.pause(0.05)
+                footer = screen_text(app).splitlines()[-1]
+                if "^p Settings" in footer:
+                    break
             for shown in ("^s Save", "f5 Export", "f6 View", "^l Import", "^p Settings"):
                 assert shown in footer, footer
             app.action_projects()
