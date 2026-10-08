@@ -26,7 +26,7 @@ def _data(hint: str, *columns: Column, unique: str | None = None) -> tuple[Table
 
 class PieChart(TableChart):
     id = "pie"
-    csv_notes = "Slices with a value of 0 are skipped. The colour column is optional."
+    csv_notes = "Slices with a value of 0 are skipped. The color column is optional."
     label = "Pie / donut chart"
     description = "Show how a whole splits into parts."
     settings = (
@@ -34,10 +34,11 @@ class PieChart(TableChart):
         Setting("percent", "Print the percentage on each slice", "choice", "yes", YES_NO),
     )
     tables = _data(
-        "One row per slice. Slice colours are picked for you.",
+        "One row per slice. Slice colors are picked for you.",
         Column("label", "Label", help="Name of the slice"),
         Column("value", "Value", "number", minimum=0, help="Size of the slice (0 or more)"),
-        Column("color", "Colour", "color", required=False, help="Hex code like #377EB8; blank = automatic"),
+        Column("color", "Color", "color", required=False, help="Hex code like #377EB8; blank = automatic",
+               aliases=("colour",)),
     )
 
     def check_ready(self, p: TableProject) -> None:
@@ -292,7 +293,7 @@ class ScatterChart(TableChart):
         X_LABEL, Y_LABEL,
     )
     tables = _data(
-        "One row per point. Group (optional) colours points by group; Size (optional) makes bubbles.",
+        "One row per point. Group (optional) colors points by group; Size (optional) makes bubbles.",
         Column("x", "X", "number"),
         Column("y", "Y", "number"),
         Column("group", "Group", required=False, aliases=("category", "series")),
@@ -344,10 +345,10 @@ class HeatmapChart(TableChart):
     id = "heatmap"
     csv_notes = "Each row/column pair may appear only once. Missing pairs are drawn grey."
     label = "Heatmap"
-    description = "A grid of coloured cells - darker means bigger. Good for comparing two categories."
+    description = "A grid of colored cells - darker means bigger. Good for comparing two categories."
     settings = (
         Setting("values", "Print the number in each cell", "choice", "yes", YES_NO),
-        Setting("colormap", "Colours", "choice", "Blues",
+        Setting("colormap", "Colors", "choice", "Blues",
                 ("Blues", "Greens", "Reds", "YlOrRd", "viridis", "coolwarm")),
         X_LABEL, Y_LABEL,
     )

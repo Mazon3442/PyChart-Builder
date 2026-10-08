@@ -1,6 +1,6 @@
 # Heatmap: CSV format
 
-A grid of coloured cells - darker means bigger. Good for comparing two categories.
+A grid of colored cells - darker means bigger. Good for comparing two categories.
 
 ## Columns
 
@@ -39,7 +39,7 @@ Wed,Evening,27
 ## Settings (set in the app, not in the CSV)
 
 - **Print the number in each cell** (default: yes). Options: yes, no.
-- **Colours** (default: Blues). Options: Blues, Greens, Reds, YlOrRd, viridis, coolwarm.
+- **Colors** (default: Blues). Options: Blues, Greens, Reds, YlOrRd, viridis, coolwarm.
 - **X-axis label (optional)**.
 - **Y-axis label (optional)**.
 

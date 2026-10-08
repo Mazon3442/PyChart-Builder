@@ -50,7 +50,7 @@ you were last working on.
 
 Each chart has a **Settings** tab, one or more data tabs, and a **Preview** tab. The Gantt chart has
 Categories, Tasks and Milestones; the others have a **Data** tab. Bar, line, area and radar charts
-also have a **Series** tab, with one row per set of bars or lines. Colours are picked for you; choose
+also have a **Series** tab, with one row per set of bars or lines. Colors are picked for you; choose
 one from the swatches if you like. You never need to type a hex code.
 
 ## Keys

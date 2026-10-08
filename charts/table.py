@@ -197,7 +197,7 @@ class TableChart(ChartType):
     def rows_swapped(self, p: TableProject, table: str, i: int, j: int) -> None: ...
 
     def fill_row(self, p: TableProject, table: str, row: list[Any]) -> list[Any]:
-        """Last chance to complete a new row (e.g. pick a colour). Raises ValueError to reject it."""
+        """Last chance to complete a new row (e.g. pick a color). Raises ValueError to reject it."""
         return row
 
     # ---- rendering
@@ -326,9 +326,10 @@ class TableChart(ChartType):
 SERIES_TABLE = TableSpec(
     "series", "Series",
     "Each series is one set of bars/lines and gets one column on the Data tab. "
-    "Colours are picked for you; choose your own if you like.",
+    "Colors are picked for you; choose your own if you like.",
     (Column("name", "Name", help="Shown in the legend"),
-     Column("color", "Colour", "color", required=False, help="Hex code like #377EB8; blank = automatic")),
+     Column("color", "Color", "color", required=False, help="Hex code like #377EB8; blank = automatic",
+               aliases=("colour",))),
     unique="name",
 )
 

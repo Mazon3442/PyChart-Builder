@@ -21,7 +21,7 @@ This is `examples/pareto.csv`:
 label,value
 Scratches,48
 Dents,27
-Wrong colour,12
+Wrong color,12
 Loose parts,8
 Missing label,5
 ```

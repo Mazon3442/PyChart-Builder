@@ -1,5 +1,5 @@
 """
-Shared pieces for every chart type: colours, number/date parsing, the projects folder,
+Shared pieces for every chart type: colors, number/date parsing, the projects folder,
 and loading/saving project files (the chart type is stored in the JSON as "type").
 
 The chart types themselves live in the `charts` package.
@@ -13,8 +13,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
-# Colour choices offered in the picker, SWATCH_COLS per row. The first row is also
-# what gets handed out automatically, in order, to things without a colour.
+# Color choices offered in the picker, SWATCH_COLS per row. The first row is also
+# what gets handed out automatically, in order, to things without a color.
 SWATCH_COLS = 8
 SWATCHES = [
     "#377EB8", "#E4572E", "#3A9E4E", "#8456B8", "#E0A82E", "#2AA6B8", "#C94F8A", "#6B6B6B",
@@ -40,7 +40,7 @@ def auto_color(used_colors: list[str]) -> str:
 
 
 def color_cycle(n: int) -> list[str]:
-    """`n` distinct-looking colours, for slices, groups and the like."""
+    """`n` distinct-looking colors, for slices, groups and the like."""
     return [SWATCHES[i % len(SWATCHES)] for i in range(n)]
 
 

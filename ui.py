@@ -1,5 +1,5 @@
 """
-Widgets and dialogs shared by every editor screen: scrolling panel, row tables, the colour
+Widgets and dialogs shared by every editor screen: scrolling panel, row tables, the color
 picker, the add/edit form, and a yes/no confirmation.
 """
 from __future__ import annotations
@@ -105,7 +105,7 @@ CELL = 5                # width of one swatch in characters
 
 
 class ColorPicker(Widget, can_focus=True):
-    """Grid of colour swatches plus an 'auto-pick' choice. Arrow keys or mouse to choose."""
+    """Grid of color swatches plus an 'auto-pick' choice. Arrow keys or mouse to choose."""
 
     DEFAULT_CSS = """
     ColorPicker { height: 7; width: 42; border: round $panel; }
@@ -135,7 +135,7 @@ class ColorPicker(Widget, can_focus=True):
 
     @property
     def value(self) -> str:
-        """Hex code of the chosen swatch, or '' for auto-pick / a custom colour."""
+        """Hex code of the chosen swatch, or '' for auto-pick / a custom color."""
         return core.SWATCHES[self.sel] if self.sel >= 0 else ""
 
     def choose(self, sel: int) -> None:
@@ -163,7 +163,7 @@ class ColorPicker(Widget, can_focus=True):
             self.choose(row * cols + col)
 
     def action_confirm(self) -> None:
-        """Enter keeps the highlighted colour and moves on to the next field."""
+        """Enter keeps the highlighted color and moves on to the next field."""
         self.screen.focus_next()
 
     def on_click(self, event: events.Click) -> None:
@@ -180,7 +180,7 @@ class ColorPicker(Widget, can_focus=True):
     def render(self) -> Text:
         out = Text(no_wrap=True)
         auto = self.sel == AUTO
-        out.append((" ✓ " if auto else "   ") + "Auto-pick a colour for me".ljust(core.SWATCH_COLS * CELL - 3),
+        out.append((" ✓ " if auto else "   ") + "Auto-pick a color for me".ljust(core.SWATCH_COLS * CELL - 3),
                    style="bold reverse" if auto else "bold")
         for i, color in enumerate(core.SWATCHES):
             if i % core.SWATCH_COLS == 0:
@@ -199,7 +199,7 @@ class Field:
     label: str
     value: str = ""
     choices: list[str] | None = None  # set -> dropdown instead of text box
-    picker: bool = False              # set -> colour swatches above the text box
+    picker: bool = False              # set -> color swatches above the text box
 
 
 class FormScreen(ModalScreen[Any]):
@@ -269,7 +269,7 @@ class FormScreen(ModalScreen[Any]):
         move_between_buttons(self, delta)
 
     def action_nav_focus(self, delta: int) -> None:
-        """↑/↓ move between fields (the colour picker uses them itself until you leave it)."""
+        """↑/↓ move between fields (the color picker uses them itself until you leave it)."""
         if delta > 0:
             self.focus_next()
         else:
@@ -329,7 +329,7 @@ def number(raw: str, what: str, minimum: float, strict: bool = False) -> float:
 
 
 def parse_color(raw: str, used: list[str]) -> str:
-    """Hex colour as typed, or the next free swatch when left blank."""
+    """Hex color as typed, or the next free swatch when left blank."""
     raw = raw.strip()
     if not raw:
         return core.auto_color(used)

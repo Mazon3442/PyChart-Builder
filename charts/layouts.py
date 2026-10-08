@@ -27,7 +27,7 @@ class TimelineChart(TableChart):
     settings = ()
     tables = (TableSpec(
         "data", "Events", "One row per event. Rows may be in any order; they're sorted by date. "
-        "Category (optional) colours the event.",
+        "Category (optional) colors the event.",
         (Column("date", "Date", "date", default=core.local_today().isoformat(), help="YYYY-MM-DD"),
          Column("label", "Label", aliases=("event", "name")),
          Column("category", "Category", required=False, aliases=("group",)))),)

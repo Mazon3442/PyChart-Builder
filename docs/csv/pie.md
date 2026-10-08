@@ -10,9 +10,9 @@ The first row must contain these column names, in any order.
 |---|---|---|---|
 | `Label` | yes | text. Name of the slice | - |
 | `Value` | yes | number. Size of the slice (0 or more) | - |
-| `Colour` | no | hex colour like #377EB8. Hex code like #377EB8; blank = automatic | `color` |
+| `Color` | no | hex color like #377EB8. Hex code like #377EB8; blank = automatic | `colour` |
 
-Slices with a value of 0 are skipped. The colour column is optional.
+Slices with a value of 0 are skipped. The color column is optional.
 
 ## Example
 

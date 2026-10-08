@@ -101,7 +101,7 @@ class EditorScreen(Screen[None]):
         tabs.active = order[(order.index(tabs.active) + delta) % len(order)]  # wraps, like the tab bar
 
     def action_nav_focus(self, delta: int) -> None:
-        """↑/↓ move between boxes (tables, lists and the colour picker use them for themselves)."""
+        """↑/↓ move between boxes (tables, lists and the color picker use them for themselves)."""
         if isinstance(self.app.screen, ModalScreen):
             return
         self.focus_next() if delta > 0 else self.focus_previous()

@@ -63,7 +63,7 @@ class GanttEditor(EditorScreen):
                     yield Label(label, classes="field-label")
                     yield Input(value=values[key], id=f"set-{key}")
             with TabPane("Categories", id="tab-categories"):
-                yield Label("Categories give tasks their bar colour. Colours are picked for you automatically; "
+                yield Label("Categories give tasks their bar color. Colors are picked for you automatically; "
                             "choose your own if you like (no hex codes needed).  a add · enter edit · d delete",
                             classes="hint")
                 yield ItemTable(id="categories", cursor_type="row", zebra_stripes=True)
@@ -80,7 +80,7 @@ class GanttEditor(EditorScreen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#categories", DataTable).add_columns("", "Name", "Colour", "Tasks")
+        self.query_one("#categories", DataTable).add_columns("", "Name", "Color", "Tasks")
         self.query_one("#tasks", DataTable).add_columns("WBS", "Task", "Category", "Start wk", "Weeks", "Ends wk")
         self.query_one("#milestones", DataTable).add_columns("Week", "Label")
         self.refresh_all()
@@ -156,7 +156,7 @@ class GanttEditor(EditorScreen):
         if kind == "categories":
             title = f"{verb} category"
             fields = [Field("name", "Name", old.name if old else ""),
-                      Field("color", "Colour (leave on Auto and one is picked for you)",
+                      Field("color", "Color (leave on Auto and one is picked for you)",
                             old.color if old else "", picker=True)]
 
             def validate(raw: dict[str, str]) -> Item:

@@ -14,7 +14,7 @@ from .table import TableChart, parse_cell
 
 ROOT = Path(__file__).resolve().parent.parent
 KIND_TEXT = {"text": "text", "number": "number", "int": "whole number", "date": "date (YYYY-MM-DD)",
-             "color": "hex colour like #377EB8", "choice": "one of the listed words"}
+             "color": "hex color like #377EB8", "choice": "one of the listed words"}
 
 SHARED_RULES = """\
 # Importing charts from CSV

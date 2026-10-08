@@ -147,7 +147,7 @@ def test_adding_a_series_and_rows_in_a_bar_chart(projects):
             await pilot.press("enter")
             await pilot.pause()
             assert [s[0] for s in project.tables["series"]] == ["Series 1", "Costs"]
-            assert project.tables["series"][1][1], "a colour was picked automatically"
+            assert project.tables["series"][1][1], "a color was picked automatically"
             # a data row with two values
             ed.query_one("TabbedContent").active = "tab-data"
             await pilot.pause()

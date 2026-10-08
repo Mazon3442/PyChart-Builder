@@ -270,11 +270,11 @@ GANTT_CSV_COLUMNS = [
            aliases=("start week",)),
     Column("duration", "duration", "number", minimum=0, strict=True, help="Length in weeks (more than 0)",
            aliases=("weeks", "duration weeks")),
-    Column("category", "category", required=False, help='Groups tasks and gives them a colour; blank = "Tasks"',
+    Column("category", "category", required=False, help='Groups tasks and gives them a color; blank = "Tasks"',
            aliases=("group",)),
     Column("wbs", "wbs", required=False, help="Number printed inside the bar, e.g. 2.1"),
     Column("color", "color", "color", required=False,
-           help="Hex colour for the category (the first row of each category counts)", aliases=("colour",)),
+           help="Hex color for the category (the first row of each category counts)", aliases=("colour",)),
 ]
 
 

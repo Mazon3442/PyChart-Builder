@@ -11,9 +11,9 @@ The first row must contain these column names, in any order.
 | `task` | yes | text. Task name | `task name`, `name` |
 | `start` | yes | number. Week the task starts (1 = first week; may be fractional) | `start week` |
 | `duration` | yes | number. Length in weeks (more than 0) | `weeks`, `duration weeks` |
-| `category` | no | text. Groups tasks and gives them a colour; blank = "Tasks" | `group` |
+| `category` | no | text. Groups tasks and gives them a color; blank = "Tasks" | `group` |
 | `wbs` | no | text. Number printed inside the bar, e.g. 2.1 | - |
-| `color` | no | hex colour like #377EB8. Hex colour for the category (the first row of each category counts) | `colour` |
+| `color` | no | hex color like #377EB8. Hex color for the category (the first row of each category counts) | `colour` |
 
 Milestones aren't imported - add them in the app.
 
